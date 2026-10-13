@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block title %}Patient EMR | {{ patient.name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto w-full min-h-screen flex flex-col bg-slate-950 p-4 md:p-6 space-y-6">
+
+    <!-- Header & Navigation -->
+    <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+        <div>
+            <a href="/dashboard/clinic/patients?slug={{ tenant.slug }}" class="text-xs text-blue-400 hover:underline flex items-center gap-1 mb-1">
+                &larr; Back to Patients Directory
+            </a>
+            <h1 class="text-2xl font-black text-slate-100 tracking-tight">{{ patient.name }}</h1>
+        </div>
+
+        <div class="flex items-center gap-2">
+            {% if can_view_clinical_notes %}
+                <button
+                    type="button"
+                    onclick="openConsultationModal()"
+                    class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center gap-1.5"
+                >
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+                    + Record Consultation
+                </button>
+            {% endif %}
+
+            <a
+                href="/dashboard/clinic/invoices?slug={{ tenant.slug }}&customer_id={{ patient.id }}"
+                class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center gap-1.5"
+            >
+                <svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z"/></svg>
+                Create Invoice
+            </a>
+        </div>
+    </header>
+
+    <!-- Patient Demographics & Consent Card -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+        <div>
+            <span class="text-slate-500 uppercase font-semibold block text-[10px]">Mobile Number</span>
+            <span class="font-bold text-slate-200 text-sm mt-0.5 block">+91 {{ patient.phone }}</span>
+        </div>
+        <div>
+            <span class="text-slate-500 uppercase font-semibold block text-[10px]">Age &amp; Gender</span>
+            <span class="font-bold text-slate-200 text-sm mt-0.5 block">
+                {{ patient.age or "N/A" }} yrs • {{ patient.gender or "Unspecified" }}
+            </span>
+        </div>
+        <div>
+            <span class="text-slate-500 uppercase font-semibold block text-[10px]">DPDP Act Consent</span>
+            {% if patient.dpdp_consent_given %}
+                <span class="inline-flex items-center gap-1 text-emerald-400 font-bold mt-0.5">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                    Verified Active
+                </span>
+            {% else %}
+                <span class="text-rose-400 font-bold mt-0.5">Pending</span>
+            {% endif %}
+        </div>
+        <div>
+            <span class="text-slate-500 uppercase font-semibold block text-[10px]">Audit Status</span>
+            <span class="font-mono text-[11px] text-slate-400 mt-0.5 block">Access Logged</span>
+        </div>
+    </div>
+
+    <!-- General Medical Background Notes -->
+    {% if patient.notes %}
+        <div class="p-3.5 bg-slate-900/60 rounded-xl border border-slate-800 text-xs text-slate-300">
+            <strong class="text-slate-400 uppercase text-[10px] tracking-wider block mb-1">General Medical Notes</strong>
+            <p>{{ patient.notes }}</p>
+        </div>
+    {% endif %}
+
+    <!-- Consultation & Visit History Section -->
+    <div class="space-y-4">
+        <div class="flex items-center justify-between px-1">
+            <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
+                <span>Visit &amp; Consultation History (EMR-Lite)</span>
+            </h2>
+            <span class="text-xs text-slate-400">{{ visits|length }} visits recorded</span>
+        </div>
+
+        {% if can_view_clinical_notes %}
+            <!-- DOCTOR / OWNER VIEW: Full Clinical Notes -->
+            {% if not visits %}
+                <div class="p-8 text-center bg-slate-900/50 rounded-2xl border border-slate-800">
+                    <p class="text-sm text-slate-400">No consultation visits recorded yet for this patient.</p>
+                    <button onclick="openConsultationModal()" class="mt-2 text-xs text-blue-400 font-bold hover:underline">
+                        + Record first consultation
+                    </button>
+                </div>
+            {% else %}
+                <div class="space-y-3">
+                    {% for v in visits %}
+                        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3 shadow-md hover:border-slate-700 transition-colors">
+                            <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-sm font-bold text-slate-100">{{ v.doctor_resource.name if v.doctor_resource else "Attending Doctor" }}</span>
+                                        <span class="text-xs text-blue-400 font-mono font-medium">{{ v.created_at.strftime('%a, %d %b %Y') }}</span>
+                                    </div>
+                                    <span class="text-xs text-slate-500 font-mono">{{ v.created_at.strftime('%I:%M %p') }}</span>
+                                </div>
+
+                                {% if v.next_followup_date %}
+                                    <div class="px-3 py-1.5 rounded-xl bg-blue-950/40 border border-blue-500/30 text-blue-300 text-xs flex items-center gap-1.5 self-start md:self-auto">
+                                        <svg class="w-3.5 h-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                        <span>Next Follow-up: <strong>{{ v.next_followup_date.strftime('%d %b %Y') }}</strong></span>
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                                <div>
+                                    <span class="text-[10px] uppercase font-bold text-slate-500 block mb-1">Chief Complaint</span>
+                                    <p class="text-slate-200 font-medium">{{ v.chief_complaint or "Routine consultation" }}</p>
+                                </div>
+                                <div class="md:col-span-2">
+                                    <span class="text-[10px] uppercase font-bold text-slate-500 block mb-1">Procedures Performed</span>
+                                    <p class="text-slate-200">{{ v.procedures_done or "Clinical evaluation" }}</p>
+                                </div>
+                            </div>
+
+                            <div class="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 text-xs space-y-1">
+                                <span class="text-[10px] uppercase font-bold text-emerald-400 tracking-wider block">Clinical Notes (Doctor Only)</span>
+                                <p class="text-slate-300 leading-relaxed whitespace-pre-wrap">{{ v.clinical_notes or "No private clinical notes entered." }}</p>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+        {% else %}
+            <!-- RECEPTIONIST VIEW: RBAC Privacy Masking -->
+            <div class="p-6 bg-slate-900 border border-slate-800 rounded-2xl space-y-3 text-center max-w-lg mx-auto">
+                <div class="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto">
+                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                </div>
+                <h3 class="text-sm font-bold text-slate-100">Confidential Clinical Notes</h3>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Under DPDP Act compliance and clinic RBAC rules, detailed clinical observation notes and medical procedures are strictly restricted to Doctors and Practice Owners.
+                </p>
+                <div class="text-[11px] text-slate-500 pt-2 border-t border-slate-800">
+                    Logged as Role: <strong class="text-slate-400">{{ current_role }}</strong> • Contact attending doctor to update records.
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+</div>
+
+{% if can_view_clinical_notes %}
+{# Modal: Record Consultation Visit (Doctor/Owner Only) #}
+<div id="consultation-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 overflow-y-auto max-h-[90vh]">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div>
+                <h3 class="text-base font-black text-slate-100">Record Consultation Visit</h3>
+                <p class="text-xs text-slate-400">Patient: {{ patient.name }}</p>
+            </div>
+            <button onclick="closeConsultationModal()" class="text-slate-400 hover:text-white text-xl">&times;</button>
+        </div>
+
+        <form method="POST" action="/dashboard/clinic/patients/{{ patient.id }}/visits" class="space-y-3.5">
+            <input type="hidden" name="slug" value="{{ tenant.slug }}">
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Attending Doctor</label>
+                <select name="doctor_resource_id" required class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-200 focus:outline-none focus:border-blue-500">
+                    {% for doc in doctors %}
+                        <option value="{{ doc.id }}">{{ doc.name }} ({{ doc.category or 'Consultant' }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Chief Complaint</label>
+                <input type="text" name="chief_complaint" required placeholder="e.g. Tooth sensitivity in lower molar / chronic backache" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 placeholder-slate-500">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Procedures Done</label>
+                <input type="text" name="procedures_done" placeholder="e.g. Dental scaling, root canal dressing, Abhyanga therapy session" class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Clinical Notes (Confidential)</label>
+                <textarea name="clinical_notes" rows="3" placeholder="Observation notes, diagnosis assessment, treatment plan..." class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200"></textarea>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Next Follow-Up Date (Auto WhatsApp Loop)</label>
+                <input type="date" name="next_followup_date" class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200">
+                <span class="text-[10px] text-slate-500 block mt-1">Automated WhatsApp reminder will be queued 2 days prior to this date.</span>
+            </div>
+
+            <button
+                type="submit"
+                class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 active:scale-95 transition-all text-sm mt-2"
+            >
+                Save Consultation Record
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openConsultationModal() {
+        document.getElementById('consultation-modal').classList.remove('hidden');
+    }
+    function closeConsultationModal() {
+        document.getElementById('consultation-modal').classList.add('hidden');
+    }
+</script>
+{% endif %}
+{% endblock %}

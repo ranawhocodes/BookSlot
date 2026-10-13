@@ -35,11 +35,13 @@ def create_app(config_name: str = "default") -> Flask:
     from app.blueprints.dashboard.routes import dashboard_bp
     from app.blueprints.webhooks.routes import webhooks_bp
     from app.blueprints.auth.routes import auth_bp
+    from app.blueprints.clinic.routes import clinic_bp
 
     app.register_blueprint(public_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(webhooks_bp)
     app.register_blueprint(auth_bp)
+    app.register_blueprint(clinic_bp)
 
     # Root redirect to demo tenant booking page or dashboard
     @app.route("/")

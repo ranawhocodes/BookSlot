@@ -58,7 +58,25 @@ def resolve_current_tenant() -> Optional[Tenant]:
         except (ValueError, TypeError):
             pass
 
-    # 4. Check for 'pondy-arena' demo tenant or first active tenant
+    # 4. Check path to default to appropriate vertical tenant if no slug specified
+    if request.path.startswith("/dashboard/clinic"):
+        clinic_tenant = db.session.execute(
+            select(Tenant).filter_by(slug="sri-clinic", is_active=True)
+        ).scalar_one_or_none()
+        if clinic_tenant:
+            return clinic_tenant
+        # Fallback to any clinic tenant
+        from app.models import VerticalType
+        clinic_fallback = db.session.execute(
+            select(Tenant).filter(
+                Tenant.is_active.is_(True),
+                (Tenant.vertical == VerticalType.CLINIC) | (Tenant.vertical == "CLINIC")
+            )
+        ).scalars().first()
+        if clinic_fallback:
+            return clinic_fallback
+
+    # 5. Check for 'pondy-arena' demo tenant or first active tenant
     demo = db.session.execute(
         select(Tenant).filter_by(slug="pondy-arena", is_active=True)
     ).scalar_one_or_none()

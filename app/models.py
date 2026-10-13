@@ -67,6 +67,7 @@ class UserRole(str, enum.Enum):
 class BookingStatus(str, enum.Enum):
     PENDING_PAYMENT = "PENDING_PAYMENT"
     CONFIRMED = "CONFIRMED"
+    IN_CONSULTATION = "IN_CONSULTATION"
     COMPLETED = "COMPLETED"
     CANCELLED = "CANCELLED"
     NO_SHOW = "NO_SHOW"

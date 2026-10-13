@@ -1,0 +1,117 @@
+<!-- HTMX Live Queue Table Partial -->
+<div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden divide-y divide-slate-800/60 shadow-xl" id="queue-table">
+    {% if not queue_entries %}
+        <div class="p-8 text-center text-slate-400">
+            <p class="text-sm">No patients currently in the queue for this date.</p>
+            <button onclick="openWalkinTokenModal()" class="mt-2 text-xs text-emerald-400 font-bold hover:underline">
+                + Issue first walk-in token
+            </button>
+        </div>
+    {% else %}
+        {% for b in queue_entries %}
+            <div class="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 {% if b.status.value == 'IN_CONSULTATION' %}bg-emerald-950/20 border-l-4 border-emerald-500{% elif b.status.value == 'COMPLETED' %}opacity-60 bg-slate-950/40{% endif %} hover:bg-slate-800/30 transition-colors">
+                
+                <!-- Left: Token/Appt Identifier & Patient Info -->
+                <div class="flex items-start gap-3">
+                    <!-- Token Pill or Appointment Time -->
+                    <div class="px-3 py-2 rounded-xl text-center flex-shrink-0 {% if b.is_walkin %}bg-blue-950/60 border border-blue-500/40 text-blue-300{% else %}bg-slate-950 border border-slate-800 text-slate-300{% endif %}">
+                        {% if b.is_walkin %}
+                            <span class="block text-xs font-black uppercase tracking-wider text-blue-400">Token</span>
+                            <span class="block text-base font-black font-mono text-white">#{{ b.token_number }}</span>
+                        {% else %}
+                            <span class="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Appt</span>
+                            <span class="block text-xs font-bold text-emerald-400 font-mono">{{ b.start_time.strftime('%I:%M %p') }}</span>
+                        {% endif %}
+                    </div>
+
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-bold text-slate-100">{{ b.customer.name }}</span>
+                            <!-- Status Badges -->
+                            {% if b.status.value == 'IN_CONSULTATION' %}
+                                <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold flex items-center gap-1 border border-emerald-500/30">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                    IN CONSULTATION
+                                </span>
+                            {% elif b.status.value == 'CONFIRMED' %}
+                                <span class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[10px] font-bold border border-amber-500/20">
+                                    WAITING
+                                </span>
+                            {% elif b.status.value == 'COMPLETED' %}
+                                <span class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-medium">
+                                    COMPLETED
+                                </span>
+                            {% elif b.status.value == 'NO_SHOW' %}
+                                <span class="px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 text-[10px] font-medium">
+                                    NO SHOW
+                                </span>
+                            {% endif %}
+                        </div>
+
+                        <p class="text-xs text-slate-400 mt-1">
+                            <span>+91 {{ b.customer.phone }}</span>
+                            <span class="mx-1">•</span>
+                            <span class="text-slate-300 font-medium">{{ b.resource.name }}</span>
+                            {% if b.booking_notes %}
+                                <span class="mx-1">•</span>
+                                <span class="text-slate-500 italic">{{ b.booking_notes }}</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Right: HTMX Status Transition Controls & Actions -->
+                <div class="flex items-center gap-2 flex-wrap justify-end">
+                    {% if b.status.value == 'CONFIRMED' %}
+                        <!-- Waiting -> Call In -->
+                        <form hx-post="/dashboard/clinic/queue/{{ b.id }}/status" hx-target="#queue-table-container">
+                            <input type="hidden" name="slug" value="{{ tenant.slug }}">
+                            <input type="hidden" name="status" value="IN_CONSULTATION">
+                            <button
+                                type="submit"
+                                class="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center gap-1 shadow-md active:scale-95 transition-all"
+                            >
+                                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                                Call Patient
+                            </button>
+                        </form>
+
+                        <form hx-post="/dashboard/clinic/queue/{{ b.id }}/status" hx-target="#queue-table-container">
+                            <input type="hidden" name="slug" value="{{ tenant.slug }}">
+                            <input type="hidden" name="status" value="NO_SHOW">
+                            <button
+                                type="submit"
+                                class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700 text-xs transition-colors"
+                            >
+                                No Show
+                            </button>
+                        </form>
+                    {% elif b.status.value == 'IN_CONSULTATION' %}
+                        <!-- In Consultation -> Complete -->
+                        <form hx-post="/dashboard/clinic/queue/{{ b.id }}/status" hx-target="#queue-table-container">
+                            <input type="hidden" name="slug" value="{{ tenant.slug }}">
+                            <input type="hidden" name="status" value="COMPLETED">
+                            <button
+                                type="submit"
+                                class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-white text-slate-950 font-bold text-xs flex items-center gap-1 shadow-md active:scale-95 transition-all"
+                            >
+                                <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                                Finish Consultation
+                            </button>
+                        </form>
+                    {% endif %}
+
+                    <!-- Patient Record / Profile Link -->
+                    <a
+                        href="/dashboard/clinic/patients/{{ b.customer_id }}"
+                        class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium flex items-center gap-1"
+                    >
+                        <span>EMR</span>
+                        <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    </a>
+                </div>
+
+            </div>
+        {% endfor %}
+    {% endif %}
+</div>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-900 text-slate-900 antialiased">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice {{ invoice.invoice_number }} | {{ tenant.name }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', system-ui, sans-serif; }
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; padding: 0 !important; }
+            .receipt-card {
+                border: none !important;
+                box-shadow: none !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                padding: 1.5rem !important;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-full flex flex-col items-center justify-center p-4 md:p-8 bg-slate-900">
+
+    <!-- Top Action Bar -->
+    <div class="no-print w-full max-w-lg mb-4 flex items-center justify-between text-white">
+        <a href="/dashboard/clinic/invoices?slug={{ tenant.slug }}" class="text-xs text-slate-300 hover:text-white flex items-center gap-1">
+            &larr; Back to Invoices
+        </a>
+        <button
+            onclick="window.print()"
+            class="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+        >
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+            Print Receipt (A4/A5)
+        </button>
+    </div>
+
+    <!-- Printable Receipt Card -->
+    <div class="receipt-card w-full max-w-lg bg-white rounded-3xl p-8 md:p-10 shadow-2xl border border-slate-200 text-left space-y-6">
+
+        <!-- Clinic Header -->
+        <div class="flex items-start justify-between border-b-2 border-slate-900 pb-5">
+            <div>
+                <span class="text-[10px] font-black uppercase tracking-widest text-emerald-700 block">Medical Invoice &amp; Receipt</span>
+                <h1 class="text-xl md:text-2xl font-black text-slate-950 tracking-tight">{{ tenant.name }}</h1>
+                <p class="text-xs text-slate-600 mt-1">{{ tenant.address or "Mission Street, Heritage Town, Pondicherry" }}</p>
+                <p class="text-xs text-slate-600 font-mono">Clinic Desk: +91 {{ tenant.phone }}</p>
+            </div>
+            <div class="text-right">
+                <span class="text-xs font-bold text-slate-500 uppercase block">Invoice #</span>
+                <span class="text-base font-black font-mono text-slate-900">{{ invoice.invoice_number }}</span>
+                <span class="text-xs text-slate-500 block mt-1">{{ invoice.created_at.strftime('%d %b %Y') if invoice.created_at else '' }}</span>
+            </div>
+        </div>
+
+        <!-- Patient Demographics -->
+        <div class="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-2xl border border-slate-200">
+            <div>
+                <span class="text-[10px] uppercase font-bold text-slate-500 block">Patient Name</span>
+                <span class="font-bold text-slate-900 text-sm block mt-0.5">{{ invoice.customer.name }}</span>
+            </div>
+            <div>
+                <span class="text-[10px] uppercase font-bold text-slate-500 block">Contact Phone</span>
+                <span class="font-bold text-slate-900 text-sm block mt-0.5">+91 {{ invoice.customer.phone }}</span>
+            </div>
+        </div>
+
+        <!-- Itemized Table -->
+        <div class="space-y-2">
+            <span class="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Itemized Consultation &amp; Services</span>
+            <table class="w-full text-xs text-left">
+                <thead>
+                    <tr class="border-b border-slate-200 text-slate-500 font-bold uppercase text-[10px]">
+                        <th class="py-2">Description</th>
+                        <th class="py-2 text-right">Amount (INR)</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for item in invoice.line_items %}
+                        <tr>
+                            <td class="py-2.5 font-medium text-slate-800">{{ item.desc }}</td>
+                            <td class="py-2.5 text-right font-mono font-bold text-slate-900">₹{{ item.amount_paise // 100 }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Financial Totals -->
+        <div class="pt-4 border-t-2 border-slate-900 space-y-2 text-xs">
+            <div class="flex justify-between font-bold text-slate-800">
+                <span>Total Amount Billed</span>
+                <span class="font-mono text-base">₹{{ invoice.total_paise // 100 }}</span>
+            </div>
+            <div class="flex justify-between text-emerald-700 font-bold">
+                <span>Amount Paid ({{ invoice.payment_mode.value if invoice.payment_mode else 'CASH' }})</span>
+                <span class="font-mono">₹{{ invoice.paid_paise // 100 }}</span>
+            </div>
+            {% if invoice.balance_paise > 0 %}
+                <div class="flex justify-between text-amber-800 font-black p-2 bg-amber-50 rounded-xl border border-amber-200 text-sm">
+                    <span>Balance Due</span>
+                    <span class="font-mono">₹{{ invoice.balance_paise // 100 }}</span>
+                </div>
+            {% else %}
+                <div class="text-center p-2 bg-emerald-50 text-emerald-800 font-bold rounded-xl border border-emerald-200 text-xs">
+                    ✓ Full Amount Settled
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Footer -->
+        <div class="pt-4 border-t border-slate-200 text-center text-[10px] text-slate-500">
+            <p>Thank you for consulting at {{ tenant.name }}.</p>
+            <p class="mt-0.5">Automated invoice generated by SlotEngine SaaS • DPDP Act Compliant</p>
+        </div>
+
+    </div>
+
+</body>
+</html>

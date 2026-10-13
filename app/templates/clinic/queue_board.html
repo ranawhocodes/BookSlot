@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block title %}Queue Board | {{ tenant.name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto w-full min-h-screen flex flex-col bg-slate-950 p-4 md:p-6 space-y-6">
+
+    <!-- Clinic Header & Sub-navigation -->
+    <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+        <div>
+            <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-[10px] font-bold uppercase tracking-wider">
+                    {{ tenant.vertical.value }} Terminal
+                </span>
+                <span class="text-xs text-slate-400">Role: <strong class="text-slate-200">{{ current_role }}</strong></span>
+            </div>
+            <h1 class="text-2xl font-black text-slate-100 tracking-tight mt-1">{{ tenant.name }}</h1>
+        </div>
+
+        <!-- Clinic Module Tabs -->
+        <nav class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+            <a href="/dashboard/clinic/queue?slug={{ tenant.slug }}" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white shadow-md shadow-blue-500/20">
+                Queue Board
+            </a>
+            <a href="/dashboard/clinic/patients?slug={{ tenant.slug }}" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800">
+                Patients (EMR)
+            </a>
+            <a href="/dashboard/clinic/invoices?slug={{ tenant.slug }}" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800">
+                Invoices
+            </a>
+            <div class="relative group">
+                <button type="button" class="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800 flex items-center gap-1">
+                    <span>Export CSV</span>
+                    <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div class="absolute right-0 mt-1 w-44 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-1 hidden group-hover:block z-30 text-xs">
+                    <a href="/dashboard/clinic/export/patients?slug={{ tenant.slug }}" class="block px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white">Patients Directory CSV</a>
+                    {% if current_role in ('OWNER', 'DOCTOR') %}
+                        <a href="/dashboard/clinic/export/visits?slug={{ tenant.slug }}" class="block px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white">Clinical Visits CSV</a>
+                    {% endif %}
+                    <a href="/dashboard/clinic/export/invoices?slug={{ tenant.slug }}" class="block px-3 py-2 text-slate-300 hover:bg-slate-800 hover:text-white">Financial Invoices CSV</a>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Queue Controls Bar -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900/60 p-3.5 rounded-2xl border border-slate-800">
+        <div class="flex flex-wrap items-center gap-2">
+            <!-- Doctor Filter Dropdown -->
+            <form method="GET" action="/dashboard/clinic/queue" class="flex items-center gap-2">
+                <input type="hidden" name="slug" value="{{ tenant.slug }}">
+                <input type="hidden" name="date" value="{{ selected_date.isoformat() }}">
+                <select name="doctor_id" onchange="this.form.submit()" class="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-blue-500">
+                    <option value="">All Doctors / Schedules</option>
+                    {% for doc in doctors %}
+                        <option value="{{ doc.id }}" {% if selected_doctor_id == doc.id %}selected{% endif %}>{{ doc.name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+
+            <!-- Date Selector -->
+            <form method="GET" action="/dashboard/clinic/queue" class="flex items-center gap-2">
+                <input type="hidden" name="slug" value="{{ tenant.slug }}">
+                {% if selected_doctor_id %}<input type="hidden" name="doctor_id" value="{{ selected_doctor_id }}">{% endif %}
+                <input
+                    type="date"
+                    name="date"
+                    value="{{ selected_date.isoformat() }}"
+                    onchange="this.form.submit()"
+                    class="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                >
+            </form>
+        </div>
+
+        <!-- Issue Walk-in Token Button -->
+        <button
+            type="button"
+            id="btn-open-walkin-token"
+            onclick="openWalkinTokenModal()"
+            class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center gap-1.5 self-start md:self-auto"
+        >
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+            + Issue Walk-In Token
+        </button>
+    </div>
+
+    <!-- 4 Queue Stats Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-amber-400">Waiting in Queue</span>
+            <div class="text-2xl font-black text-amber-300">{{ waiting_count }}</div>
+            <span class="text-[10px] text-slate-400">Patients in waiting room</span>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">In Consultation</span>
+            <div class="text-2xl font-black text-emerald-300">{{ in_consultation_count }}</div>
+            <span class="text-[10px] text-slate-400">Currently with doctor</span>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Completed Today</span>
+            <div class="text-2xl font-black text-slate-200">{{ completed_count }}</div>
+            <span class="text-[10px] text-slate-500">Finished consultations</span>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-rose-400">No Shows</span>
+            <div class="text-2xl font-black text-rose-300">{{ no_show_count }}</div>
+            <span class="text-[10px] text-slate-500">Missed appointments</span>
+        </div>
+    </div>
+
+    <!-- Live Queue Board Table -->
+    <div class="space-y-3">
+        <div class="flex items-center justify-between px-1">
+            <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                Live Patient Queue Board
+            </h2>
+            <span class="text-xs text-slate-400">{{ selected_date.strftime('%a, %d %b %Y') }}</span>
+        </div>
+
+        <div id="queue-table-container">
+            {% include "clinic/_queue_table.html" %}
+        </div>
+    </div>
+
+</div>
+
+<!-- Walk-In Token Generator Modal -->
+<div id="walkin-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 overflow-y-auto max-h-[90vh]">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div>
+                <h3 class="text-base font-black text-slate-100">Issue Walk-In Token</h3>
+                <p class="text-xs text-slate-400">Assigns next sequential daily token number</p>
+            </div>
+            <button onclick="closeWalkinTokenModal()" class="text-slate-400 hover:text-white text-xl">&times;</button>
+        </div>
+
+        <form method="POST" action="/dashboard/clinic/queue/walkin-token" class="space-y-3.5">
+            <input type="hidden" name="slug" value="{{ tenant.slug }}">
+            <input type="hidden" name="slot_date" value="{{ selected_date.isoformat() }}">
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Select Doctor</label>
+                <select name="doctor_resource_id" id="token-doctor-id" required class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-200 focus:outline-none focus:border-blue-500">
+                    {% for doc in doctors %}
+                        <option value="{{ doc.id }}" {% if selected_doctor_id == doc.id %}selected{% endif %}>
+                            {{ doc.name }} ({{ doc.category or 'Consultation' }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Patient Full Name</label>
+                <input
+                    type="text"
+                    name="patient_name"
+                    id="token-patient-name"
+                    required
+                    placeholder="e.g. Senthil Nathan"
+                    class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                >
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">WhatsApp / Phone Number</label>
+                <div class="flex items-center rounded-xl bg-slate-950 border border-slate-800 focus-within:border-blue-500">
+                    <span class="pl-3.5 pr-2 text-sm text-slate-500 font-medium">+91</span>
+                    <input
+                        type="tel"
+                        name="patient_phone"
+                        id="token-patient-phone"
+                        required
+                        maxlength="10"
+                        placeholder="9876543210"
+                        class="w-full pr-3.5 py-2.5 bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none"
+                    >
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1">Chief Complaint / Notes (Optional)</label>
+                <input
+                    type="text"
+                    name="booking_notes"
+                    placeholder="e.g. Dental scaling inquiry, severe toothache"
+                    class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-500"
+                >
+            </div>
+
+            <button
+                type="submit"
+                id="btn-confirm-walkin-token"
+                class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg shadow-blue-500/20 active:scale-95 transition-all text-sm mt-2"
+            >
+                Assign Next Token Number
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openWalkinTokenModal() {
+        document.getElementById('walkin-modal').classList.remove('hidden');
+    }
+    function closeWalkinTokenModal() {
+        document.getElementById('walkin-modal').classList.add('hidden');
+    }
+</script>
+{% endblock %}
