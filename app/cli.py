@@ -23,6 +23,20 @@ def register_commands(app: Flask) -> None:
         seed_demo_data(reset=reset)
         click.echo("Demo seeding completed successfully!")
 
+    @app.cli.command("send-reminders")
+    def send_reminders_command() -> None:
+        """Scan upcoming bookings (24h/2h) and clinic follow-ups and send reminders idempotently."""
+        from app.services.notifier import send_reminders
+        click.echo("Scanning upcoming appointments and clinic follow-up schedules...")
+        res = send_reminders()
+        click.echo(
+            f"Reminders dispatched: "
+            f"24h={res['reminders_24h_sent']}, "
+            f"2h={res['reminders_2h_sent']}, "
+            f"Follow-ups={res['followups_sent']}, "
+            f"Quota Exceeded={res['quota_exceeded_count']}"
+        )
+
 
 def seed_demo_data(reset: bool = False) -> None:
     """Idempotently seeds demo tenants, resources, pricing rules, and users."""

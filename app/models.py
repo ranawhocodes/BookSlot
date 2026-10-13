@@ -82,6 +82,17 @@ class PaymentMode(str, enum.Enum):
     CARD = "CARD"
 
 
+class NotificationChannel(str, enum.Enum):
+    WHATSAPP = "WHATSAPP"
+    SMS = "SMS"
+
+
+class NotificationStatus(str, enum.Enum):
+    SENT = "SENT"
+    FAILED = "FAILED"
+    QUOTA_EXCEEDED = "QUOTA_EXCEEDED"
+
+
 class Tenant(db.Model):
     __tablename__ = "tenants"
 
@@ -124,6 +135,7 @@ class Tenant(db.Model):
     payments: Mapped[List["Payment"]] = relationship("Payment", back_populates="tenant", cascade="all, delete-orphan")
     clinic_visits: Mapped[List["ClinicVisit"]] = relationship("ClinicVisit", back_populates="tenant", cascade="all, delete-orphan")
     invoices: Mapped[List["Invoice"]] = relationship("Invoice", back_populates="tenant", cascade="all, delete-orphan")
+    notification_logs: Mapped[List["NotificationLog"]] = relationship("NotificationLog", back_populates="tenant", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
         return f"<Tenant {self.slug} ({self.vertical.value})>"
@@ -334,6 +346,8 @@ class Booking(db.Model):
     token_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     total_amount_paise: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     paid_amount_paise: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    reminder_24h_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    reminder_2h_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("users.id"),
@@ -524,3 +538,51 @@ class AuditLog(db.Model):
 
     def __repr__(self) -> str:
         return f"<AuditLog {self.action} Tenant={self.tenant_id}>"
+
+
+class NotificationLog(db.Model):
+    __tablename__ = "notification_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    booking_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("bookings.id", ondelete="SET NULL"),
+        nullable=True
+    )
+    customer_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("customers.id", ondelete="SET NULL"),
+        nullable=True
+    )
+    recipient_phone: Mapped[str] = mapped_column(String(20), nullable=False)
+    channel: Mapped[NotificationChannel] = mapped_column(
+        SaEnum(NotificationChannel, name="notification_channel", native_enum=False),
+        nullable=False
+    )
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)  # META, AISENSY, SMS_FALLBACK
+    template_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    status: Mapped[NotificationStatus] = mapped_column(
+        SaEnum(NotificationStatus, name="notification_status", native_enum=False),
+        default=NotificationStatus.SENT,
+        nullable=False
+    )
+    payload: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        UTCDateTime,
+        server_default=func.now(),
+        nullable=False
+    )
+
+    tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="notification_logs")
+    booking: Mapped[Optional["Booking"]] = relationship("Booking")
+    customer: Mapped[Optional["Customer"]] = relationship("Customer")
+
+    def __repr__(self) -> str:
+        return f"<NotificationLog {self.channel.value}:{self.template_name} to={self.recipient_phone} ({self.status.value})>"
+

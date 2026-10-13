@@ -5,17 +5,17 @@
         <div class="flex items-center gap-2">
             <span class="inline-flex items-center gap-1.5 font-medium text-emerald-400">
                 <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                {{ slots|selectattr('status', 'equalto', 'AVAILABLE')|list|length }} Slots Available
+                {{ slots|selectattr('status', 'equalto', 'AVAILABLE')|list|length }} {{ t('slots_available') }}
             </span>
             <span>•</span>
-            <span>{{ resource.slot_duration_mins }}m duration</span>
+            <span>{{ resource.slot_duration_mins }}m {{ t('duration') }}</span>
         </div>
         <span class="text-slate-500">{{ selected_date.strftime('%a, %d %b') }}</span>
     </div>
 
     {% if not slots %}
         <div class="p-8 text-center bg-slate-900/50 rounded-2xl border border-slate-800">
-            <p class="text-sm text-slate-400">No slots available for this date.</p>
+            <p class="text-sm text-slate-400">{{ t('no_slots_date') }}</p>
         </div>
     {% else %}
         <!-- Morning / Afternoon Slots (Off-Peak) -->
@@ -23,7 +23,7 @@
         {% if off_peak_slots %}
             <div class="space-y-2">
                 <div class="flex items-center justify-between px-1">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Day Slots (Off-Peak)</span>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">{{ t('day_slots_offpeak') }}</span>
                     <span class="text-xs text-slate-500 font-mono">₹{{ resource.base_price_paise // 100 }}/hr</span>
                 </div>
                 <div class="grid grid-cols-2 gap-2.5">
@@ -46,7 +46,7 @@
                                 </span>
                                 <div class="flex items-center justify-between w-full mt-1.5 text-xs">
                                     <span class="text-emerald-400 font-medium">₹{{ s.price_paise // 100 }}</span>
-                                    <span class="text-[10px] text-slate-400 group-hover:text-emerald-400">Book &rarr;</span>
+                                    <span class="text-[10px] text-slate-400 group-hover:text-emerald-400">{{ t('book_arrow') }}</span>
                                 </div>
                             </button>
                         {% elif s.status == 'LOCKED' %}
@@ -57,7 +57,7 @@
                                 <div class="flex items-center justify-between w-full mt-1.5 text-xs">
                                     <span class="text-amber-400 text-[11px] font-medium flex items-center gap-1">
                                         <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
-                                        Held (7m)
+                                        {{ t('held_7m') }}
                                     </span>
                                 </div>
                             </div>
@@ -66,7 +66,7 @@
                                 <span class="text-sm font-semibold text-slate-500 line-through">
                                     {{ s.start_time.strftime('%I:%M %p') }}
                                 </span>
-                                <span class="text-[11px] text-slate-600 mt-1.5 font-medium">Booked</span>
+                                <span class="text-[11px] text-slate-600 mt-1.5 font-medium">{{ t('booked') }}</span>
                             </div>
                         {% endif %}
                     {% endfor %}
@@ -81,7 +81,7 @@
                 <div class="flex items-center justify-between px-1">
                     <span class="text-xs font-semibold uppercase tracking-wider text-amber-400 flex items-center gap-1">
                         <svg class="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"/></svg>
-                        Floodlight Peak Slots
+                        {{ t('floodlight_peak') }}
                     </span>
                     <span class="text-xs text-amber-300 font-mono font-medium">₹{{ peak_slots[0].price_paise // 100 }}/hr</span>
                 </div>
@@ -105,7 +105,7 @@
                                 </span>
                                 <div class="flex items-center justify-between w-full mt-1.5 text-xs">
                                     <span class="text-amber-400 font-bold">₹{{ s.price_paise // 100 }}</span>
-                                    <span class="text-[10px] text-amber-300 font-medium">Book &rarr;</span>
+                                    <span class="text-[10px] text-amber-300 font-medium">{{ t('book_arrow') }}</span>
                                 </div>
                             </button>
                         {% elif s.status == 'LOCKED' %}
@@ -116,7 +116,7 @@
                                 <div class="flex items-center justify-between w-full mt-1.5 text-xs">
                                     <span class="text-amber-400 text-[11px] font-medium flex items-center gap-1">
                                         <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
-                                        Held (7m)
+                                        {{ t('held_7m') }}
                                     </span>
                                 </div>
                             </div>
@@ -125,7 +125,7 @@
                                 <span class="text-sm font-semibold text-slate-500 line-through">
                                     {{ s.start_time.strftime('%I:%M %p') }}
                                 </span>
-                                <span class="text-[11px] text-slate-600 mt-1.5 font-medium">Booked</span>
+                                <span class="text-[11px] text-slate-600 mt-1.5 font-medium">{{ t('booked') }}</span>
                             </div>
                         {% endif %}
                     {% endfor %}

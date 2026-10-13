@@ -1,6 +1,6 @@
 import uuid
 from datetime import date, datetime, time, timedelta, timezone
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, abort
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, abort, session
 from sqlalchemy import select
 from app.extensions import db
 from app.models import (
@@ -20,11 +20,30 @@ from app.services.slot_engine import (
 from app.services.pricing import calculate_booking_quote
 from app.services.payment_gw import create_order, record_successful_payment
 from app.services.qr_generator import generate_qr_code_data_uri
+from app.translations import get_text, TAMIL_DAYS, TAMIL_MONTHS
 
 public_bp = Blueprint("public", __name__, url_prefix="/b")
 
 
-def _get_upcoming_dates(days: int = 7) -> list[dict]:
+def _get_lang() -> str:
+    """Extracts and validates preferred language (en or ta), persisting in session."""
+    lang = request.args.get("lang") or (request.form.get("lang") if request.form else None) or session.get("lang", "en")
+    if lang not in ("en", "ta"):
+        lang = "en"
+    session["lang"] = lang
+    return lang
+
+
+@public_bp.context_processor
+def inject_translations():
+    lang = _get_lang()
+    return {
+        "lang": lang,
+        "t": lambda key, **kw: get_text(key, lang=lang, **kw),
+    }
+
+
+def _get_upcoming_dates(days: int = 7, lang: str = "en") -> list[dict]:
     """Generates next `days` dates with day labels for mobile pill selector."""
     today = date.today()
     dates = []
@@ -35,13 +54,21 @@ def _get_upcoming_dates(days: int = 7) -> list[dict]:
         d = today + timedelta(days=i)
         is_today = (i == 0)
         is_tomorrow = (i == 1)
-        sub_label = "Today" if is_today else ("Tomorrow" if is_tomorrow else day_labels[d.weekday()])
+        if lang == "ta":
+            sub_label = "இன்று" if is_today else ("நாளை" if is_tomorrow else TAMIL_DAYS.get(day_labels[d.weekday()], day_labels[d.weekday()]))
+            month_disp = TAMIL_MONTHS.get(month_labels[d.month - 1], month_labels[d.month - 1])
+            day_disp = TAMIL_DAYS.get(day_labels[d.weekday()], day_labels[d.weekday()])
+        else:
+            sub_label = "Today" if is_today else ("Tomorrow" if is_tomorrow else day_labels[d.weekday()])
+            month_disp = month_labels[d.month - 1]
+            day_disp = day_labels[d.weekday()]
+
         dates.append({
             "date": d.isoformat(),
             "date_obj": d,
             "day_number": d.day,
-            "month_name": month_labels[d.month - 1],
-            "day_name": day_labels[d.weekday()],
+            "month_name": month_disp,
+            "day_name": day_disp,
             "sub_label": sub_label,
             "is_today": is_today,
             "is_weekend": d.weekday() >= 5,
@@ -53,6 +80,7 @@ def _get_upcoming_dates(days: int = 7) -> list[dict]:
 def booking_page(slug: str):
     """Main mobile-first public booking page for a business."""
     tenant = get_tenant_by_slug(slug)
+    lang = _get_lang()
 
     # Fetch active resources
     resources = db.session.execute(
@@ -74,7 +102,7 @@ def booking_page(slug: str):
         selected_resource = resources[0]
 
     # Date handling
-    upcoming_dates = _get_upcoming_dates(days=7)
+    upcoming_dates = _get_upcoming_dates(days=7, lang=lang)
     date_str = request.args.get("date", upcoming_dates[0]["date"])
     try:
         selected_date = date.fromisoformat(date_str)
@@ -321,6 +349,26 @@ def mock_payment(slug: str):
         razorpay_payment_id=f"pay_mock_{uuid.uuid4().hex[:10]}",
         payload={"gateway": "mock_upi", "status": "captured"},
     )
+
+    # Dispatch confirmation notification
+    from app.services.notifier import notifier
+    if booking.customer and booking.customer.phone:
+        notifier.send_notification(
+            tenant=tenant,
+            recipient_phone=booking.customer.phone,
+            template_name="booking_confirmed",
+            parameters={
+                "customer_name": booking.customer.name,
+                "resource_name": booking.resource.name,
+                "slot_date": booking.slot_date.strftime("%d %b %Y"),
+                "start_time": booking.start_time.strftime("%I:%M %p"),
+                "venue_name": tenant.name,
+                "balance_inr": (booking.total_amount_paise - booking.paid_amount_paise) // 100,
+            },
+            customer_id=booking.customer_id,
+            booking_id=booking.id,
+            language=session.get("lang", "en"),
+        )
 
     if request.headers.get("HX-Request"):
         # Redirect or render confirmation
