@@ -21,6 +21,13 @@ def app():
     return test_app
 
 
+@pytest.fixture
+def client(app):
+    """Flask test client."""
+    return app.test_client()
+
+
+
 @pytest.fixture(autouse=True)
 def db_session(app):
     """Provide a clean database session per test with fresh schema."""

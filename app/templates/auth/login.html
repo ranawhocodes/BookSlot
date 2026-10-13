@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Login | SlotEngine{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto w-full min-h-screen flex flex-col justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-6">
+        <div class="text-center space-y-1">
+            <span class="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold uppercase tracking-wider">
+                Staff Terminal
+            </span>
+            <h1 class="text-2xl font-black text-slate-100 mt-2">SlotEngine Login</h1>
+            <p class="text-xs text-slate-400">Sign in to manage turf bookings, walk-ins, and desk payments.</p>
+        </div>
+
+        <form method="POST" action="/auth/login" class="space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1" for="phone">Phone Number</label>
+                <input
+                    type="tel"
+                    name="phone"
+                    id="phone"
+                    required
+                    value="9876543210"
+                    placeholder="9876543210"
+                    class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
+                >
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1" for="password">Password</label>
+                <input
+                    type="password"
+                    name="password"
+                    id="password"
+                    required
+                    value="password123"
+                    class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
+                >
+            </div>
+            <button
+                type="submit"
+                class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95 transition-all text-sm"
+            >
+                Sign In to Dashboard
+            </button>
+        </form>
+
+        <!-- Quick Demo Switcher -->
+        <div class="pt-4 border-t border-slate-800 space-y-2">
+            <span class="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 text-center">
+                Quick Demo Switcher
+            </span>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+                <a
+                    href="/auth/switch-tenant/pondy-arena"
+                    class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-emerald-500/50 text-center block text-slate-300 font-medium hover:text-emerald-300"
+                >
+                    ⚽ Pondy Arena Turf
+                </a>
+                <a
+                    href="/auth/switch-tenant/sri-clinic"
+                    class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-emerald-500/50 text-center block text-slate-300 font-medium hover:text-emerald-300"
+                >
+                    🩺 Sri Clinic
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

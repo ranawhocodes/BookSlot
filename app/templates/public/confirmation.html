@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}Booking Confirmed | {{ tenant.name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto w-full min-h-screen flex flex-col bg-slate-950 p-4 pb-12 justify-center">
+
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-6 text-center">
+
+        <!-- Success Header -->
+        <div class="space-y-2">
+            <div class="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto ring-8 ring-emerald-500/10">
+                <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                </svg>
+            </div>
+            <h1 class="text-2xl font-black text-slate-100 tracking-tight">Booking Confirmed!</h1>
+            <p class="text-xs text-slate-400">WhatsApp confirmation alert has been dispatched.</p>
+        </div>
+
+        <!-- Ticket Card -->
+        <div class="bg-slate-950 rounded-2xl border border-slate-800/80 p-5 text-left space-y-4">
+            <div class="flex items-start justify-between border-b border-slate-800 pb-3">
+                <div>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Pass Reference</span>
+                    <span class="block text-base font-black text-slate-100 font-mono">#{{ booking.id.hex[:8].upper() }}</span>
+                </div>
+                <div class="text-right">
+                    <span class="text-[10px] uppercase tracking-wider text-slate-400">Court / Turf</span>
+                    <span class="block text-sm font-bold text-slate-200">{{ booking.resource.name }}</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                    <span class="text-slate-500 block text-[10px] uppercase font-semibold">Date</span>
+                    <span class="font-bold text-slate-200">{{ booking.slot_date.strftime('%a, %d %b %Y') }}</span>
+                </div>
+                <div>
+                    <span class="text-slate-500 block text-[10px] uppercase font-semibold">Time Window</span>
+                    <span class="font-bold text-emerald-400">{{ booking.start_time.strftime('%I:%M %p') }} - {{ booking.end_time.strftime('%I:%M %p') }}</span>
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-800 space-y-2 text-xs">
+                <div class="flex justify-between items-center text-slate-300">
+                    <span>Advance Paid (UPI)</span>
+                    <span class="font-bold text-emerald-400">₹{{ booking.paid_amount_paise // 100 }}</span>
+                </div>
+                {% if balance_paise > 0 %}
+                    <div class="flex justify-between items-center p-2 rounded-lg bg-amber-950/30 border border-amber-500/20 text-amber-300 text-xs font-semibold">
+                        <span>Balance to Collect at Venue</span>
+                        <span class="font-bold">₹{{ balance_paise // 100 }}</span>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Venue QR Code for Entry Gate -->
+            <div class="pt-3 border-t border-slate-800 text-center">
+                <img src="{{ qr_data_uri }}" alt="Pass QR Code" class="w-32 h-32 mx-auto rounded-xl border border-white/20 p-1.5 bg-white shadow-md">
+                <span class="block text-[10px] text-slate-400 mt-2 font-mono">Present at venue counter on arrival</span>
+            </div>
+        </div>
+
+        <!-- Venue Location Info -->
+        <div class="p-3 bg-slate-950/60 rounded-xl border border-slate-800/60 text-left text-xs space-y-1">
+            <span class="font-bold text-slate-200 block">{{ tenant.name }}</span>
+            <p class="text-slate-400 text-[11px]">{{ tenant.address or "ECR Main Road, Lawspet, Pondicherry" }}</p>
+            <p class="text-emerald-400 text-[11px] font-medium pt-1">Venue Desk: +91 {{ tenant.phone }}</p>
+        </div>
+
+        <!-- Actions -->
+        <div class="space-y-2 pt-2">
+            <a
+                href="/b/{{ tenant.slug }}"
+                class="block w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-center shadow-lg shadow-emerald-500/20 active:scale-95 transition-all text-sm"
+            >
+                Book Another Slot
+            </a>
+            <a
+                href="/dashboard?slug={{ tenant.slug }}"
+                class="block w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-xl text-center text-xs"
+            >
+                View Staff Dashboard &rarr;
+            </a>
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}
