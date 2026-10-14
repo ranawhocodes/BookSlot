@@ -3,228 +3,236 @@
 {% block title %}Dashboard | {{ tenant.name }}{% endblock %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto w-full min-h-screen flex flex-col bg-slate-950 p-4 md:p-6 space-y-6">
+<div class="min-h-screen w-full bg-[#F4F3EC] text-[#181A1D] p-4 md:p-8">
+    <div class="max-w-5xl mx-auto space-y-6">
 
-    <!-- Top Navigation & Actions Bar -->
-    <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-        <div>
-            <div class="flex items-center gap-2">
-                <span
-                    class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
-                    {{ tenant.vertical.value }} Operations
-                </span>
-                <span class="text-xs text-slate-400">Desk Terminal</span>
+        <!-- Top Venue Manager Header -->
+        <header
+            class="bg-white rounded-[28px] p-5 md:p-6 border border-stone-200/80 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <div class="flex items-center gap-2">
+                    <span
+                        class="px-3 py-1 rounded-full bg-[#EBF5EA] text-[#39662A] text-[10px] font-extrabold uppercase tracking-wider">
+                        {{ tenant.vertical.value }} VENUE TERMINAL
+                    </span>
+                    <span class="text-xs font-semibold text-stone-400">Live Operations</span>
+                </div>
+                <h1 class="text-2xl font-black text-[#181A1D] tracking-tight mt-1.5">{{ tenant.name }}</h1>
             </div>
-            <h1 class="text-2xl font-black text-slate-100 tracking-tight mt-1">{{ tenant.name }}</h1>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap items-center gap-2.5">
+                <button type="button" id="btn-open-manual-booking" onclick="openManualBookingModal()"
+                    class="bg-[#181A1D] hover:bg-black text-white rounded-full py-2 pl-4 pr-2 font-extrabold text-xs shadow-md flex items-center gap-2.5 active:scale-95 transition-all">
+                    <span>+ 2-Tap Phone/Walk-In</span>
+                    <span class="w-7 h-7 rounded-full bg-[#A3C962] text-[#181A1D] flex items-center justify-center">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                d="M12 4v16m8-8H4" />
+                        </svg>
+                    </span>
+                </button>
+
+                <button type="button" id="btn-open-block-slot" onclick="openBlockSlotModal()"
+                    class="px-4 py-2.5 rounded-full bg-[#F6F5F0] hover:bg-stone-200/70 text-[#181A1D] border border-stone-200 font-bold text-xs flex items-center gap-1.5 active:scale-95 transition-all">
+                    <svg class="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                    </svg>
+                    Block Slot
+                </button>
+
+                <a href="/dashboard/qr-poster?slug={{ tenant.slug }}" id="btn-qr-poster"
+                    class="px-4 py-2.5 rounded-full bg-[#EBF5EA] hover:bg-[#D7ECD5] text-[#1D3515] font-extrabold text-xs flex items-center gap-1.5 active:scale-95 transition-all">
+                    <svg class="w-4 h-4 text-[#4B8338]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                    </svg>
+                    QR Poster
+                </a>
+
+                <a href="/b/{{ tenant.slug }}" target="_blank"
+                    class="px-4 py-2.5 rounded-full bg-white border border-stone-200 text-[#181A1D] hover:bg-stone-50 font-bold text-xs flex items-center gap-1">
+                    <span>Public Page</span>
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                </a>
+            </div>
+        </header>
+
+        <!-- Date Controls Bar -->
+        <div
+            class="flex items-center justify-between bg-white px-5 py-3.5 rounded-[22px] border border-stone-200/80 shadow-sm">
+            <div class="flex items-center gap-2.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-[#5E9E47]"></span>
+                <span class="text-xs font-bold text-stone-400 uppercase tracking-wider">Schedule Date:</span>
+                <span class="text-sm font-extrabold text-[#181A1D]">{{ selected_date.strftime('%A, %d %B %Y') }}</span>
+            </div>
+            <form method="GET" action="/dashboard" class="flex items-center gap-2">
+                <input type="hidden" name="slug" value="{{ tenant.slug }}">
+                <input type="date" name="date" id="dashboard-date-picker" title="Select Dashboard Date"
+                    aria-label="Select Dashboard Date" value="{{ selected_date.isoformat() }}"
+                    onchange="this.form.submit()"
+                    class="px-3.5 py-1.5 rounded-xl bg-[#F6F5F0] border border-stone-200 text-xs font-bold text-[#181A1D] focus:outline-none focus:border-[#5E9E47]">
+            </form>
         </div>
 
-        <!-- Quick Actions -->
-        <div class="flex flex-wrap items-center gap-2">
-            <button type="button" id="btn-open-manual-booking" onclick="openManualBookingModal()"
-                class="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 flex items-center gap-1.5 active:scale-95 transition-all">
-                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
-                </svg>
-                + 2-Tap Phone/Walk-In
-            </button>
+        <!-- 4 Revenue & Court Occupancy Metric Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="p-5 rounded-[24px] bg-white border border-stone-200/80 shadow-sm space-y-1">
+                <span class="text-[11px] font-extrabold uppercase tracking-wider text-stone-400">Total Bookings</span>
+                <div class="text-3xl font-black text-[#181A1D]">{{ confirmed_count }}</div>
+                <div class="text-xs text-stone-500 font-semibold flex items-center gap-1.5 pt-1">
+                    <span class="w-2 h-2 rounded-full bg-[#5E9E47]"></span>
+                    <span>{{ blocked_count }} maintenance blocks</span>
+                </div>
+            </div>
 
-            <button type="button" id="btn-open-block-slot" onclick="openBlockSlotModal()"
-                class="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center gap-1.5 active:scale-95 transition-all">
-                <svg class="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                </svg>
-                Block Slot
-            </button>
+            <div class="p-5 rounded-[24px] bg-[#EBF5EA] border-2 border-[#68A856]/40 shadow-sm space-y-1">
+                <span class="text-[11px] font-extrabold uppercase tracking-wider text-[#39662A]">Revenue
+                    Collected</span>
+                <div class="text-3xl font-black text-[#1D3515]">₹{{ total_collected_paise // 100 }}</div>
+                <div class="text-[11px] text-[#39662A] font-bold flex items-center justify-between pt-1">
+                    <span>UPI: ₹{{ online_upi_collected_paise // 100 }}</span>
+                    <span>Cash: ₹{{ cash_collected_paise // 100 }}</span>
+                </div>
+            </div>
 
-            <a href="/dashboard/qr-poster?slug={{ tenant.slug }}" id="btn-qr-poster"
-                class="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs flex items-center gap-1.5 active:scale-95 transition-all">
-                <svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                </svg>
-                QR Poster
-            </a>
+            <div class="p-5 rounded-[24px] bg-white border border-stone-200/80 shadow-sm space-y-1">
+                <span class="text-[11px] font-extrabold uppercase tracking-wider text-amber-700">Pending at Venue</span>
+                <div class="text-3xl font-black text-amber-600">₹{{ pending_venue_balance_paise // 100 }}</div>
+                <div class="text-xs text-stone-400 font-semibold pt-1">Collect at turf gate</div>
+            </div>
 
-            <a href="/b/{{ tenant.slug }}" target="_blank"
-                class="px-3.5 py-2.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 font-semibold text-xs flex items-center gap-1">
-                <span>Live Page</span>
-                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-            </a>
-        </div>
-    </header>
-
-    <!-- Date Bar & Controls -->
-    <div class="flex items-center justify-between bg-slate-900/60 p-3 rounded-2xl border border-slate-800">
-        <div class="flex items-center gap-3">
-            <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Date:</span>
-            <span class="text-sm font-bold text-slate-100">{{ selected_date.strftime('%A, %d %B %Y') }}</span>
-        </div>
-        <form method="GET" action="/dashboard" class="flex items-center gap-2">
-            <input type="hidden" name="slug" value="{{ tenant.slug }}">
-            <input type="date" name="date" id="dashboard-date-picker" title="Select Dashboard Date"
-                aria-label="Select Dashboard Date" value="{{ selected_date.isoformat() }}" onchange="this.form.submit()"
-                class="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
-        </form>
-    </div>
-
-    <!-- 4 Key Revenue & Occupancy Metric Cards -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <!-- Card 1: Today's Bookings -->
-        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
-            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Total Bookings</span>
-            <div class="text-2xl font-black text-slate-100">{{ confirmed_count }}</div>
-            <div class="text-[11px] text-slate-500 flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                <span>{{ blocked_count }} blocked</span>
+            <div class="p-5 rounded-[24px] bg-white border border-stone-200/80 shadow-sm space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-extrabold uppercase tracking-wider text-stone-400">Occupancy</span>
+                    <span class="text-sm font-black text-[#181A1D]">{{ occupancy_pct }}%</span>
+                </div>
+                <div class="w-full h-2.5 bg-[#F6F5F0] rounded-full overflow-hidden">
+                    <div id="occupancy-progress-bar" data-occupancy="{{ [occupancy_pct, 100]|min }}"
+                        class="w-0 h-full bg-[#5E9E47] rounded-full transition-all duration-500"></div>
+                </div>
+                <div class="text-[11px] text-stone-400 font-semibold">{{ confirmed_count + blocked_count }} / {{
+                    total_capacity_slots }} slots filled</div>
             </div>
         </div>
 
-        <!-- Card 2: Cash vs UPI Collected -->
-        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
-            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Revenue Collected</span>
-            <div class="text-2xl font-black text-emerald-400">₹{{ total_collected_paise // 100 }}</div>
-            <div class="text-[10px] text-slate-400 flex items-center justify-between">
-                <span>UPI: ₹{{ online_upi_collected_paise // 100 }}</span>
-                <span>Cash: ₹{{ cash_collected_paise // 100 }}</span>
+        <!-- Today's Court Schedule & Activity Log -->
+        <div class="space-y-3">
+            <div class="flex items-center justify-between px-1">
+                <h2 class="text-base font-extrabold text-[#181A1D]">Today's Court Schedule &amp; Activity Log</h2>
+                <span class="text-xs font-bold text-stone-400">{{ bookings|length }} slots active</span>
             </div>
-        </div>
 
-        <!-- Card 3: Pending Balance at Venue -->
-        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-1">
-            <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Pending at Venue</span>
-            <div class="text-2xl font-black text-amber-400">₹{{ pending_venue_balance_paise // 100 }}</div>
-            <div class="text-[10px] text-slate-400">To collect upon arrival</div>
-        </div>
-
-        <!-- Card 4: Occupancy % -->
-        <div class="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">
-            <div class="flex items-center justify-between">
-                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Occupancy</span>
-                <span class="text-xs font-bold text-slate-100">{{ occupancy_pct }}%</span>
+            {% if not bookings %}
+            <div class="p-10 text-center bg-white rounded-[28px] border border-stone-200/80 shadow-sm">
+                <p class="text-sm font-semibold text-stone-400">No bookings or holds recorded yet for {{
+                    selected_date.strftime('%d %b %Y') }}.</p>
+                <button type="button" onclick="openManualBookingModal()"
+                    class="mt-3 px-4 py-2 rounded-full bg-[#EBF5EA] text-[#39662A] text-xs font-extrabold hover:bg-[#D7ECD5]">+
+                    Create first phone/walk-in booking</button>
             </div>
-            <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                <div id="occupancy-progress-bar" data-occupancy="{{ [occupancy_pct, 100]|min }}"
-                    class="w-0 h-full bg-emerald-500 rounded-full transition-all duration-500"></div>
-            </div>
-            <div class="text-[10px] text-slate-500">{{ confirmed_count + blocked_count }} / {{ total_capacity_slots }}
-                slots filled</div>
-        </div>
-    </div>
-
-    <!-- Today's Schedule Matrix & Booking Log -->
-    <div class="space-y-3">
-        <div class="flex items-center justify-between px-1">
-            <h2 class="text-base font-bold text-slate-100">Today's Schedule &amp; Activity Log</h2>
-            <span class="text-xs text-slate-400">{{ bookings|length }} events recorded</span>
-        </div>
-
-        {% if not bookings %}
-        <div class="p-8 text-center bg-slate-900/40 rounded-2xl border border-slate-800/80">
-            <p class="text-sm text-slate-400">No bookings or holds recorded yet for {{ selected_date.strftime('%d %b
-                %Y') }}.</p>
-            <button type="button" onclick="openManualBookingModal()"
-                class="mt-3 text-xs text-emerald-400 font-bold hover:underline">+ Create first phone/walk-in
-                booking</button>
-        </div>
-        {% else %}
-        <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden divide-y divide-slate-800/60">
-            {% for b in bookings %}
+            {% else %}
             <div
-                class="p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-slate-800/30 transition-colors">
-                <!-- Left: Time & Resource -->
-                <div class="flex items-start gap-3">
-                    <div
-                        class="px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-center flex-shrink-0">
-                        <span class="block text-xs font-bold text-emerald-400 font-mono">{{ b.start_time.strftime('%I:%M
-                            %p') }}</span>
-                        <span class="block text-[10px] text-slate-500 font-mono">{{ b.end_time.strftime('%I:%M %p')
-                            }}</span>
+                class="bg-white rounded-[28px] border border-stone-200/80 shadow-sm overflow-hidden divide-y divide-stone-100">
+                {% for b in bookings %}
+                <div
+                    class="p-4 md:p-5 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-[#FAF9F5] transition-colors">
+                    <div class="flex items-start gap-3.5">
+                        <div
+                            class="px-3.5 py-2 rounded-2xl bg-[#EBF5EA] border border-[#68A856]/40 text-center flex-shrink-0">
+                            <span class="block text-xs font-black text-[#1D3515] font-mono">{{
+                                b.start_time.strftime('%I:%M %p') }}</span>
+                            <span class="block text-[10px] font-bold text-[#4B8338] font-mono">{{
+                                b.end_time.strftime('%I:%M %p') }}</span>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="text-sm font-extrabold text-[#181A1D]">{{ b.resource.name }}</span>
+                                {% if b.status.value == 'CONFIRMED' %}
+                                <span
+                                    class="px-2.5 py-0.5 rounded-full bg-[#EBF5EA] text-[#39662A] text-[10px] font-extrabold">CONFIRMED</span>
+                                {% elif b.status.value == 'BLOCKED' %}
+                                <span
+                                    class="px-2.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-extrabold">BLOCKED</span>
+                                {% elif b.status.value == 'PENDING_PAYMENT' %}
+                                <span
+                                    class="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold">7-MIN
+                                    HOLD</span>
+                                {% else %}
+                                <span
+                                    class="px-2.5 py-0.5 rounded-full bg-stone-100 text-stone-500 text-[10px] font-bold">{{
+                                    b.status.value }}</span>
+                                {% endif %}
+                                {% if b.is_walkin %}
+                                <span
+                                    class="px-2 py-0.5 rounded-full bg-stone-900 text-white text-[10px] font-bold">Walk-In</span>
+                                {% endif %}
+                            </div>
+                            <p class="text-xs text-stone-500 font-medium mt-1">
+                                {% if b.customer %}
+                                <span class="text-[#181A1D] font-bold">{{ b.customer.name }}</span> • +91 {{
+                                b.customer.phone }}
+                                {% else %}
+                                {{ b.booking_notes or "Venue Block" }}
+                                {% endif %}
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm font-bold text-slate-100">{{ b.resource.name }}</span>
-                            {% if b.status.value == 'CONFIRMED' %}
-                            <span
-                                class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 text-[10px] font-bold">CONFIRMED</span>
-                            {% elif b.status.value == 'BLOCKED' %}
-                            <span
-                                class="px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-400 text-[10px] font-bold">BLOCKED</span>
-                            {% elif b.status.value == 'PENDING_PAYMENT' %}
-                            <span
-                                class="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 text-[10px] font-bold">7-MIN
-                                HOLD</span>
+
+                    <div class="flex items-center justify-between md:justify-end gap-4 text-right">
+                        {% if b.status.value == 'CONFIRMED' %}
+                        <div class="text-xs">
+                            <span class="text-[#181A1D] font-extrabold">Paid: ₹{{ b.paid_amount_paise // 100 }}</span>
+                            {% set bal = (b.total_amount_paise - b.paid_amount_paise) // 100 %}
+                            {% if bal > 0 %}
+                            <span class="block text-amber-600 font-bold text-[11px]">Due at Venue: ₹{{ bal }}</span>
                             {% else %}
-                            <span class="px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 text-[10px] font-bold">{{
-                                b.status.value }}</span>
-                            {% endif %}
-                            {% if b.is_walkin %}
-                            <span
-                                class="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[10px] font-medium">Walk-In</span>
+                            <span class="block text-[#5E9E47] font-bold text-[10px]">Fully Settled</span>
                             {% endif %}
                         </div>
-                        <p class="text-xs text-slate-400 mt-1">
-                            {% if b.customer %}
-                            <span class="text-slate-300 font-medium">{{ b.customer.name }}</span> • +91 {{
-                            b.customer.phone }}
-                            {% else %}
-                            {{ b.booking_notes or "Venue Block" }}
-                            {% endif %}
-                        </p>
-                    </div>
-                </div>
-
-                <!-- Right: Pricing & Actions -->
-                <div class="flex items-center justify-between md:justify-end gap-4 text-right">
-                    {% if b.status.value == 'CONFIRMED' %}
-                    <div class="text-xs">
-                        <span class="text-slate-200 font-bold">Paid: ₹{{ b.paid_amount_paise // 100 }}</span>
-                        {% set bal = (b.total_amount_paise - b.paid_amount_paise) // 100 %}
-                        {% if bal > 0 %}
-                        <span class="block text-amber-400 font-medium text-[11px]">Due: ₹{{ bal }}</span>
-                        {% else %}
-                        <span class="block text-emerald-400 text-[10px]">Fully Paid</span>
+                        {% elif b.status.value == 'BLOCKED' %}
+                        <form method="POST" action="/dashboard/unblock-slot/{{ b.id }}">
+                            <button type="submit"
+                                class="text-xs text-rose-600 hover:bg-rose-50 font-bold px-3.5 py-1.5 rounded-full border border-rose-200">
+                                Unblock
+                            </button>
+                        </form>
                         {% endif %}
                     </div>
-                    {% elif b.status.value == 'BLOCKED' %}
-                    <form method="POST" action="/dashboard/unblock-slot/{{ b.id }}">
-                        <button type="submit"
-                            class="text-xs text-rose-400 hover:text-rose-300 font-medium px-3 py-1.5 rounded-lg border border-rose-500/30 hover:bg-rose-950/30">
-                            Unblock
-                        </button>
-                    </form>
-                    {% endif %}
                 </div>
+                {% endfor %}
             </div>
-            {% endfor %}
+            {% endif %}
         </div>
-        {% endif %}
-    </div>
 
+    </div>
 </div>
 
 <!-- Modal 1: 2-Tap Manual Walk-In / Phone Booking Modal -->
 <div id="manual-modal"
-    class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
-        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+    class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div
+        class="bg-[#F6F5F0] border border-stone-200 rounded-[32px] p-6 max-w-md w-full shadow-2xl space-y-4 text-[#181A1D]">
+        <div class="flex items-center justify-between border-b border-stone-200 pb-3">
             <div>
-                <h3 class="text-base font-black text-slate-100">Manual / Phone Booking</h3>
-                <p class="text-xs text-slate-400">Record advance paid at venue desk or via phone</p>
+                <h3 class="text-base font-black text-[#181A1D]">Manual / Phone Booking</h3>
+                <p class="text-xs text-stone-500 font-medium">Instant slot lock for phone callers &amp; walk-ins</p>
             </div>
             <button type="button" onclick="closeManualBookingModal()" title="Close modal" aria-label="Close modal"
-                class="text-slate-400 hover:text-white text-xl">&times;</button>
+                class="w-8 h-8 rounded-full bg-white text-stone-500 hover:text-black text-lg flex items-center justify-center">&times;</button>
         </div>
 
         <form method="POST" action="/dashboard/manual-booking" class="space-y-3.5">
             <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1" for="manual-res-id">Resource</label>
+                <label class="block text-xs font-bold text-stone-600 mb-1" for="manual-res-id">Select Court /
+                    Turf</label>
                 <select name="resource_id" id="manual-res-id" title="Select Resource" aria-label="Select Resource"
                     required
-                    class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-200 focus:outline-none focus:border-emerald-500">
+                    class="w-full px-3.5 py-2.5 rounded-2xl bg-white border border-stone-200 text-sm font-bold text-[#181A1D]">
                     {% for r in resources %}
                     <option value="{{ r.id }}">{{ r.name }} (₹{{ r.base_price_paise // 100 }}/hr)</option>
                     {% endfor %}
@@ -233,56 +241,54 @@
 
             <div class="grid grid-cols-3 gap-2">
                 <div class="col-span-1">
-                    <label class="block text-xs font-semibold text-slate-400 mb-1" for="manual-slot-date">Date</label>
+                    <label class="block text-xs font-bold text-stone-600 mb-1" for="manual-slot-date">Date</label>
                     <input type="date" name="slot_date" id="manual-slot-date" title="Booking Date"
                         aria-label="Booking Date" value="{{ selected_date.isoformat() }}" required
-                        class="w-full px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200">
+                        class="w-full px-2.5 py-2 rounded-2xl bg-white border border-stone-200 text-xs font-bold text-[#181A1D]">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 mb-1" for="manual-start-time">Start
+                    <label class="block text-xs font-bold text-stone-600 mb-1" for="manual-start-time">Start
                         Time</label>
                     <input type="time" name="start_time" id="manual-start-time" title="Start Time"
                         aria-label="Start Time" value="18:00" required
-                        class="w-full px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200">
+                        class="w-full px-2.5 py-2 rounded-2xl bg-white border border-stone-200 text-xs font-bold text-[#181A1D]">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 mb-1" for="manual-end-time">End
-                        Time</label>
+                    <label class="block text-xs font-bold text-stone-600 mb-1" for="manual-end-time">End Time</label>
                     <input type="time" name="end_time" id="manual-end-time" title="End Time" aria-label="End Time"
                         value="19:00" required
-                        class="w-full px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200">
+                        class="w-full px-2.5 py-2 rounded-2xl bg-white border border-stone-200 text-xs font-bold text-[#181A1D]">
                 </div>
             </div>
 
             <div class="grid grid-cols-2 gap-2">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 mb-1" for="manual-name">Caller Name</label>
+                    <label class="block text-xs font-bold text-stone-600 mb-1" for="manual-name">Caller Name</label>
                     <input type="text" name="name" id="manual-name" title="Caller Name" required placeholder="Ramesh"
-                        class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 placeholder-slate-500">
+                        class="w-full px-3.5 py-2.5 rounded-2xl bg-white border border-stone-200 text-sm font-semibold text-[#181A1D]">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 mb-1" for="manual-phone">Phone
-                        Number</label>
+                    <label class="block text-xs font-bold text-stone-600 mb-1" for="manual-phone">Phone Number</label>
                     <input type="tel" name="phone" id="manual-phone" title="Caller Phone Number" required maxlength="10"
                         placeholder="9876543210"
-                        class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 placeholder-slate-500">
+                        class="w-full px-3.5 py-2.5 rounded-2xl bg-white border border-stone-200 text-sm font-semibold text-[#181A1D]">
                 </div>
             </div>
 
             <div class="grid grid-cols-2 gap-2">
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 mb-1" for="manual-advance">Advance Paid
+                    <label class="block text-xs font-bold text-stone-600 mb-1" for="manual-advance">Advance Paid
                         (Paise)</label>
                     <input type="number" name="advance_paid_paise" id="manual-advance" title="Advance Paid in Paise"
                         aria-label="Advance Paid in Paise" value="20000" step="1000"
-                        class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100">
-                    <span class="text-[10px] text-slate-500">₹200 = 20000 paise</span>
+                        class="w-full px-3.5 py-2 rounded-2xl bg-white border border-stone-200 text-sm font-bold text-[#181A1D]">
+                    <span class="text-[10px] text-stone-400 font-semibold">₹200 = 20000 paise</span>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 mb-1" for="manual-payment-mode">Payment
+                    <label class="block text-xs font-bold text-stone-600 mb-1" for="manual-payment-mode">Payment
                         Mode</label>
                     <select name="payment_mode" id="manual-payment-mode" title="Payment Mode" aria-label="Payment Mode"
-                        class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-200">
+                        class="w-full px-3.5 py-2 rounded-2xl bg-white border border-stone-200 text-sm font-bold text-[#181A1D]">
                         <option value="CASH">Cash Desk</option>
                         <option value="UPI_VENUE">UPI QR at Desk</option>
                     </select>
@@ -290,15 +296,20 @@
             </div>
 
             <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1" for="manual-notes">Notes</label>
+                <label class="block text-xs font-bold text-stone-600 mb-1" for="manual-notes">Notes</label>
                 <input type="text" name="booking_notes" id="manual-notes" title="Booking Notes"
                     placeholder="Phone booking confirmed by Ramesh"
-                    class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200">
+                    class="w-full px-3.5 py-2 rounded-2xl bg-white border border-stone-200 text-xs font-semibold text-[#181A1D]">
             </div>
 
             <button type="submit" id="btn-confirm-manual-booking"
-                class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95 transition-all text-sm mt-2">
-                Confirm Booking Instantly
+                class="w-full bg-[#181A1D] hover:bg-black text-white rounded-full p-2 pl-6 shadow-xl flex items-center justify-between active:scale-95 transition-all">
+                <span class="text-sm font-extrabold">Confirm Booking Instantly</span>
+                <span class="w-9 h-9 rounded-full bg-[#A3C962] text-[#181A1D] flex items-center justify-center">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                    </svg>
+                </span>
             </button>
         </form>
     </div>
@@ -306,23 +317,24 @@
 
 <!-- Modal 2: Block Slot Modal -->
 <div id="block-modal"
-    class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
-        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+    class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div
+        class="bg-[#F6F5F0] border border-stone-200 rounded-[32px] p-6 max-w-md w-full shadow-2xl space-y-4 text-[#181A1D]">
+        <div class="flex items-center justify-between border-b border-stone-200 pb-3">
             <div>
-                <h3 class="text-base font-black text-slate-100">Blockout Slot</h3>
-                <p class="text-xs text-slate-400">Lock slots for tournaments or pitch maintenance</p>
+                <h3 class="text-base font-black text-[#181A1D]">Blockout Court Slot</h3>
+                <p class="text-xs text-stone-500 font-medium">Lock slots for tournaments or turf maintenance</p>
             </div>
             <button type="button" onclick="closeBlockSlotModal()" title="Close modal" aria-label="Close modal"
-                class="text-slate-400 hover:text-white text-xl">&times;</button>
+                class="w-8 h-8 rounded-full bg-white text-stone-500 hover:text-black text-lg flex items-center justify-center">&times;</button>
         </div>
 
         <form method="POST" action="/dashboard/block-slot" class="space-y-3.5">
             <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1" for="block-res-id">Resource</label>
+                <label class="block text-xs font-bold text-stone-600 mb-1" for="block-res-id">Resource</label>
                 <select name="resource_id" id="block-res-id" title="Select Resource to Block"
                     aria-label="Select Resource to Block" required
-                    class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-200">
+                    class="w-full px-3.5 py-2.5 rounded-2xl bg-white border border-stone-200 text-sm font-bold text-[#181A1D]">
                     {% for r in resources %}
                     <option value="{{ r.id }}">{{ r.name }}</option>
                     {% endfor %}
@@ -331,35 +343,34 @@
 
             <div class="grid grid-cols-3 gap-2">
                 <div class="col-span-1">
-                    <label class="block text-xs font-semibold text-slate-400 mb-1" for="block-slot-date">Date</label>
+                    <label class="block text-xs font-bold text-stone-600 mb-1" for="block-slot-date">Date</label>
                     <input type="date" name="slot_date" id="block-slot-date" title="Block Date" aria-label="Block Date"
                         value="{{ selected_date.isoformat() }}" required
-                        class="w-full px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200">
+                        class="w-full px-2.5 py-2 rounded-2xl bg-white border border-stone-200 text-xs font-bold text-[#181A1D]">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 mb-1" for="block-start-time">Start
-                        Time</label>
+                    <label class="block text-xs font-bold text-stone-600 mb-1" for="block-start-time">Start Time</label>
                     <input type="time" name="start_time" id="block-start-time" title="Block Start Time"
                         aria-label="Block Start Time" value="06:00" required
-                        class="w-full px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200">
+                        class="w-full px-2.5 py-2 rounded-2xl bg-white border border-stone-200 text-xs font-bold text-[#181A1D]">
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 mb-1" for="block-end-time">End Time</label>
+                    <label class="block text-xs font-bold text-stone-600 mb-1" for="block-end-time">End Time</label>
                     <input type="time" name="end_time" id="block-end-time" title="Block End Time"
                         aria-label="Block End Time" value="08:00" required
-                        class="w-full px-2.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200">
+                        class="w-full px-2.5 py-2 rounded-2xl bg-white border border-stone-200 text-xs font-bold text-[#181A1D]">
                 </div>
             </div>
 
             <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1" for="block-reason">Reason</label>
+                <label class="block text-xs font-bold text-stone-600 mb-1" for="block-reason">Reason</label>
                 <input type="text" name="reason" id="block-reason" title="Block Reason" aria-label="Block Reason"
                     value="Floodlight Maintenance" required
-                    class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100">
+                    class="w-full px-3.5 py-2.5 rounded-2xl bg-white border border-stone-200 text-sm font-semibold text-[#181A1D]">
             </div>
 
             <button type="submit"
-                class="w-full py-3 bg-rose-500 hover:bg-rose-400 text-white font-bold rounded-xl shadow-lg shadow-rose-500/20 active:scale-95 transition-all text-sm mt-2">
+                class="w-full py-3.5 bg-rose-600 hover:bg-rose-500 text-white font-extrabold rounded-full shadow-lg active:scale-95 transition-all text-sm mt-2">
                 Block Selected Slot
             </button>
         </form>

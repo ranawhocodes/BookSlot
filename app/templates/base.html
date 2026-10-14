@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-950 text-slate-100 antialiased">
+<html lang="en" class="h-full bg-[#F4F3EC] text-[#181A1D] antialiased">
 
 <head>
     <meta charset="UTF-8">
@@ -14,6 +14,22 @@
             theme: {
                 extend: {
                     colors: {
+                        cream: {
+                            50: '#FAF9F5',
+                            100: '#F4F3EC',
+                            200: '#E8E6DC',
+                            300: '#D6D3C4',
+                        },
+                        turf: {
+                            50: '#EBF5EA',
+                            100: '#D7ECD5',
+                            400: '#A3C962',
+                            500: '#5E9E47',
+                            600: '#4B8338',
+                            700: '#39662A',
+                            900: '#1D3515',
+                        },
+                        obsidian: '#181A1D',
                         brand: {
                             50: '#ecfdf5',
                             100: '#d1fae5',
@@ -26,28 +42,30 @@
                         }
                     },
                     fontFamily: {
-                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                        sans: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace'],
                     }
                 }
             }
         }
     </script>
 
-    <!-- Google Font: Inter -->
+    <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
 
     <!-- HTMX 2.0.4 CDN -->
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
 
     <style>
         body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
             -webkit-tap-highlight-color: transparent;
         }
 
-        /* Custom scrollbar for horizontal date picker */
         .no-scrollbar::-webkit-scrollbar {
             display: none;
         }
@@ -56,25 +74,28 @@
             -ms-overflow-style: none;
         }
 
-        /* Safe area support for notch iPhones */
         .safe-bottom {
-            padding-bottom: env(safe-area-inset-bottom, 16px);
+            padding-bottom: env(safe-area-inset-bottom, 20px);
         }
     </style>
     {% block head %}{% endblock %}
 </head>
 
-<body class="h-full flex flex-col bg-slate-950 text-slate-100">
+<body class="h-full flex flex-col bg-[#F4F3EC] text-[#181A1D]">
     <!-- Flash Notifications -->
     {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
     <div class="fixed top-4 left-4 right-4 z-50 max-w-md mx-auto space-y-2">
         {% for category, message in messages %}
         <div
-            class="px-4 py-3 rounded-xl text-sm font-medium shadow-xl flex items-center justify-between {% if category == 'error' %}bg-rose-950/90 text-rose-200 border border-rose-500/40{% elif category == 'success' %}bg-emerald-950/90 text-emerald-200 border border-emerald-500/40{% else %}bg-slate-900/95 text-slate-200 border border-slate-700{% endif %}">
-            <span>{{ message }}</span>
+            class="px-4 py-3.5 rounded-2xl text-xs font-bold shadow-xl flex items-center justify-between {% if category == 'error' %}bg-rose-600 text-white{% elif category == 'success' %}bg-[#181A1D] text-white border border-[#A3C962]/40{% else %}bg-white text-[#181A1D] border border-stone-200{% endif %}">
+            <span class="flex items-center gap-2">
+                <span
+                    class="w-2 h-2 rounded-full {% if category == 'error' %}bg-white{% else %}bg-[#A3C962]{% endif %}"></span>
+                {{ message }}
+            </span>
             <button type="button" onclick="this.parentElement.remove()" title="Dismiss"
-                aria-label="Dismiss notification" class="ml-3 text-slate-400 hover:text-white">&times;</button>
+                aria-label="Dismiss notification" class="ml-3 opacity-70 hover:opacity-100 text-base">&times;</button>
         </div>
         {% endfor %}
     </div>

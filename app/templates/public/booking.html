@@ -1,273 +1,453 @@
 {% extends "base.html" %}
 
-{% block title %}{{ tenant.name }} | Book Slots Online{% endblock %}
+{% block title %}{{ tenant.name }} | Reserve Your Court{% endblock %}
 
 {% block content %}
-<div class="max-w-md mx-auto w-full min-h-screen flex flex-col bg-slate-950 pb-20">
+<div class="min-h-screen w-full bg-[#E8E6DC] flex justify-center md:py-6 md:px-4">
+    <!-- Mobile Phone App Frame -->
+    <div
+        class="w-full max-w-[430px] bg-[#F6F5F0] md:rounded-[42px] md:shadow-2xl md:border-[6px] md:border-white/80 min-h-screen md:min-h-[860px] flex flex-col justify-between pb-28 relative overflow-x-hidden text-[#181A1D]">
 
-    <!-- Venue Branding Header -->
-    <header class="p-4 bg-slate-900/90 border-b border-slate-800/80 sticky top-0 z-20 backdrop-blur-md">
-        <div class="flex items-start justify-between">
-            <div>
-                <div class="flex items-center gap-2">
-                    <span
-                        class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
-                        {{ tenant.vertical.value }}
-                    </span>
-                    <span class="text-xs text-slate-400 flex items-center gap-1">
-                        <svg class="w-3.5 h-3.5 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd"
-                                d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"
-                                clip-rule="evenodd" />
-                        </svg>
-                        Pondicherry
-                    </span>
-                </div>
-                <h1 class="text-xl font-black text-slate-100 tracking-tight mt-1">{{ tenant.name }}</h1>
-                <p class="text-xs text-slate-400 line-clamp-1 mt-0.5">{{ tenant.address or "Lawspet, Pondicherry" }}</p>
+        <!-- Top App Navigation Bar -->
+        <header
+            class="px-5 pt-5 pb-3 flex items-center justify-between sticky top-0 z-20 bg-[#F6F5F0]/90 backdrop-blur-md">
+            <a href="/dashboard?slug={{ tenant.slug }}" title="Staff Dashboard" aria-label="Staff Dashboard"
+                class="w-10 h-10 rounded-full bg-white shadow-sm border border-stone-200/70 flex items-center justify-center text-[#181A1D] hover:bg-stone-50 active:scale-95 transition-all">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 19l-7-7 7-7" />
+                </svg>
+            </a>
+
+            <div class="text-center">
+                <span class="text-[11px] font-bold uppercase tracking-widest text-[#5E9E47] block">
+                    {{ tenant.vertical.value }} ARENA
+                </span>
+                <h1 class="text-sm font-extrabold text-[#181A1D] tracking-tight">{{ tenant.name }}</h1>
             </div>
 
-            <div class="flex items-center gap-2">
-                <!-- English / Tamil Language Toggle -->
+            <div class="flex items-center gap-1.5">
+                <!-- EN / Tamil Language Pill -->
                 <div
-                    class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold shadow-inner">
+                    class="flex items-center bg-white p-0.5 rounded-full border border-stone-200/80 text-[11px] font-bold shadow-sm">
                     <a href="?lang=en&resource_id={{ selected_resource.id }}&date={{ selected_date.isoformat() }}"
                         id="lang-en-toggle"
-                        class="px-2.5 py-1 rounded-lg transition-all {% if lang == 'en' %}bg-emerald-500 text-slate-950 shadow-sm{% else %}text-slate-400 hover:text-white{% endif %}">
+                        class="px-2.5 py-1 rounded-full transition-all {% if lang == 'en' %}bg-[#181A1D] text-white{% else %}text-stone-500 hover:text-[#181A1D]{% endif %}">
                         EN
                     </a>
                     <a href="?lang=ta&resource_id={{ selected_resource.id }}&date={{ selected_date.isoformat() }}"
                         id="lang-ta-toggle"
-                        class="px-2.5 py-1 rounded-lg transition-all {% if lang == 'ta' %}bg-emerald-500 text-slate-950 shadow-sm{% else %}text-slate-400 hover:text-white{% endif %}">
+                        class="px-2.5 py-1 rounded-full transition-all {% if lang == 'ta' %}bg-[#181A1D] text-white{% else %}text-stone-500 hover:text-[#181A1D]{% endif %}">
                         தமிழ்
                     </a>
                 </div>
 
-                <a href="tel:{{ tenant.phone }}"
-                    class="p-2.5 rounded-xl bg-slate-800 text-emerald-400 hover:bg-slate-700 active:scale-95 transition-all"
-                    aria-label="{{ t('call_venue') }}">
-                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                <a href="tel:{{ tenant.phone }}" title="{{ t('call_venue') }}" aria-label="{{ t('call_venue') }}"
+                    class="w-10 h-10 rounded-full bg-white shadow-sm border border-stone-200/70 flex items-center justify-center text-[#5E9E47] hover:bg-[#EBF5EA] active:scale-95 transition-all">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"
                             d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                     </svg>
                 </a>
             </div>
-        </div>
+        </header>
 
-        <!-- Advance policy banner -->
-        <div
-            class="mt-3 px-3 py-1.5 rounded-lg bg-emerald-950/40 border border-emerald-500/20 flex items-center justify-between text-[11px]">
-            <span class="text-emerald-300 font-medium flex items-center gap-1.5">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                {{ t('pay_advance_upi', pct=tenant.advance_percentage) }}
-            </span>
-            <span class="text-slate-400">{{ t('pay_rest_venue') if tenant.advance_percentage < 100 else t('online_100')
-                    }}</span>
-        </div>
-    </header>
+        <!-- Main Scrollable Content -->
+        <div class="px-5 space-y-6 flex-1">
 
-    <!-- Main Booking Body -->
-    <div class="flex-1 p-4 space-y-5">
+            <!-- 1. Court Showcase Hero Card (Matches Left & Center Reference Screen) -->
+            <div class="bg-white rounded-[28px] p-3.5 shadow-sm border border-stone-200/60 space-y-3.5">
+                <div class="relative h-48 w-full rounded-[22px] overflow-hidden bg-[#181A1D] group">
+                    <img id="court-hero-image"
+                        src="https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&w=900&q=80"
+                        alt="{{ selected_resource.name }}"
+                        class="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500">
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/75 via-black/15 to-transparent"></div>
 
-        <!-- 1. Resource Selector Tabs -->
-        <div class="space-y-1.5">
-            <label class="text-xs font-semibold uppercase tracking-wider text-slate-400 px-1">{{ t('court_turf_select')
-                if tenant.vertical.value == 'TURF' else t('doctor_select') }}</label>
-            <div class="flex gap-2 overflow-x-auto no-scrollbar py-0.5" id="resource-tabs">
-                {% for r in resources %}
-                <button type="button" onclick="selectResource('{{ r.id }}', '{{ r.name }}')"
-                    class="resource-tab px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border flex items-center gap-2 {% if r.id == selected_resource.id %}bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/20 font-bold{% else %}bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800{% endif %}"
-                    data-resource-id="{{ r.id }}">
-                    <span>{{ r.name }}</span>
-                </button>
-                {% endfor %}
-            </div>
-        </div>
+                    <!-- Top Distance Badge -->
+                    <div
+                        class="absolute top-3 right-3 px-3 py-1 rounded-full bg-white/95 backdrop-blur-md text-[#181A1D] text-[11px] font-extrabold shadow-sm">
+                        0.8 km • Pondy
+                    </div>
 
-        <!-- 2. Horizontal Date Picker -->
-        <div class="space-y-1.5">
-            <div class="flex items-center justify-between px-1">
-                <label class="text-xs font-semibold uppercase tracking-wider text-slate-400">{{ t('select_date')
-                    }}</label>
-                <span class="text-[11px] text-emerald-400 font-medium" id="selected-date-display">{{
-                    selected_date.strftime('%a, %d %b') }}</span>
-            </div>
-            <div class="flex gap-2 overflow-x-auto no-scrollbar py-0.5" id="date-scroll-container">
-                {% for d in upcoming_dates %}
-                <button type="button"
-                    onclick="selectDate('{{ d.date }}', '{{ d.day_name }}, {{ d.day_number }} {{ d.month_name }}')"
-                    class="date-tab flex-shrink-0 w-16 py-2.5 rounded-xl flex flex-col items-center justify-center border transition-all {% if d.date == selected_date.isoformat() %}bg-slate-100 text-slate-950 border-white font-bold shadow-lg{% else %}bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800/80{% endif %}"
-                    data-date="{{ d.date }}">
-                    <span
-                        class="text-[10px] uppercase font-semibold {% if d.date == selected_date.isoformat() %}text-emerald-700{% else %}text-slate-400{% endif %}">
-                        {{ d.sub_label }}
-                    </span>
-                    <span class="text-base font-extrabold mt-0.5 leading-tight">
-                        {{ d.day_number }}
-                    </span>
-                    <span class="text-[9px] uppercase tracking-wider text-slate-400">
-                        {{ d.month_name }}
-                    </span>
-                </button>
-                {% endfor %}
-            </div>
-        </div>
+                    <!-- Top Live Vibe Badge -->
+                    <div
+                        class="absolute top-3 left-3 px-3 py-1 rounded-full bg-[#EBF5EA]/95 backdrop-blur-md text-[#39662A] text-[11px] font-bold flex items-center gap-1.5 shadow-sm">
+                        <span class="w-2 h-2 rounded-full bg-[#5E9E47] animate-ping"></span>
+                        <span>Live Turf</span>
+                    </div>
 
-        <!-- 3. Dynamic Slot Grid (HTMX Swapped) -->
-        <div id="slots-container" class="space-y-3">
-            <div id="slots-grid"
-                hx-get="/b/{{ tenant.slug }}/slots?resource_id={{ selected_resource.id }}&date={{ selected_date.isoformat() }}"
-                hx-trigger="refreshSlots from:body">
-                {% include "public/_slots_grid.html" %}
-            </div>
-        </div>
+                    <!-- Pagination Dots & Thumbnail Overlay (+4) -->
+                    <div class="absolute bottom-3 left-4 flex items-center gap-1.5">
+                        <span class="w-2.5 h-2 rounded-full bg-[#A3C962]"></span>
+                        <span class="w-1.5 h-1.5 rounded-full bg-white/60"></span>
+                        <span class="w-1.5 h-1.5 rounded-full bg-white/60"></span>
+                        <span class="w-1.5 h-1.5 rounded-full bg-white/60"></span>
+                    </div>
 
-    </div>
-
-    <!-- Hidden state inputs for HTMX slot refreshes -->
-    <input type="hidden" id="current-resource-id" value="{{ selected_resource.id }}">
-    <input type="hidden" id="current-resource-name" value="{{ selected_resource.name }}">
-    <input type="hidden" id="current-date" value="{{ selected_date.isoformat() }}">
-
-    <!-- 4. Checkout Drawer / Bottom Sheet -->
-    <div id="drawer-backdrop"
-        class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-40 hidden transition-opacity opacity-0"
-        onclick="closeCheckoutDrawer()"></div>
-    <div id="checkout-drawer"
-        class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-slate-900 border-t border-slate-800 rounded-t-3xl p-5 z-50 transform translate-y-full transition-transform duration-300 ease-out safe-bottom max-h-[92vh] overflow-y-auto">
-        <div class="w-12 h-1.5 bg-slate-700 rounded-full mx-auto mb-4 cursor-pointer" onclick="closeCheckoutDrawer()">
-        </div>
-
-        <div id="drawer-content">
-            <!-- Step 1: Slot Review & Customer Contact -->
-            <form id="hold-form" hx-post="/b/{{ tenant.slug }}/hold" hx-target="#drawer-content" class="space-y-4">
-                <input type="hidden" name="resource_id" id="form-resource-id">
-                <input type="hidden" name="date" id="form-date">
-                <input type="hidden" name="start_time" id="form-start-time">
-                <input type="hidden" name="end_time" id="form-end-time">
-                <input type="hidden" name="lang" value="{{ lang }}">
-
-                <!-- Anti-Bot Invisible Honeypot -->
-                <div class="hidden" aria-hidden="true">
-                    <input type="text" name="website_url" tabindex="-1" autocomplete="off">
+                    <div
+                        class="absolute bottom-2.5 right-2.5 w-12 h-12 rounded-2xl bg-black/80 border border-white/30 backdrop-blur-md flex items-center justify-center text-white text-xs font-extrabold shadow-lg">
+                        +4
+                    </div>
                 </div>
 
-                <!-- Drawer Header -->
-                <div class="flex items-start justify-between border-b border-slate-800 pb-3">
+                <!-- Title, Location & Rate Row -->
+                <div class="px-1 flex items-start justify-between gap-2">
                     <div>
-                        <h3 class="text-base font-bold text-slate-100" id="drawer-res-name">{{ selected_resource.name }}
-                        </h3>
-                        <p class="text-xs text-emerald-400 font-medium mt-0.5" id="drawer-slot-time">06:00 PM - 07:00 PM
-                        </p>
+                        <h2 class="text-lg font-extrabold text-[#181A1D] tracking-tight" id="hero-resource-title">{{
+                            selected_resource.name }}</h2>
+                        <div class="flex items-center gap-2 text-xs text-stone-500 mt-0.5 font-medium">
+                            <span class="flex items-center gap-1">
+                                <svg class="w-3.5 h-3.5 text-stone-400" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                {{ tenant.address or "ECR Road, Lawspet" }}
+                            </span>
+                            <span>•</span>
+                            <span class="flex items-center gap-0.5 text-[#181A1D] font-bold">
+                                <svg class="w-3.5 h-3.5 text-amber-400 fill-current" viewBox="0 0 20 20">
+                                    <path
+                                        d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                </svg>
+                                4.9
+                            </span>
+                        </div>
                     </div>
+
                     <div class="text-right">
-                        <span class="text-lg font-black text-slate-100" id="drawer-price-display">₹1,200</span>
-                        <span class="block text-[10px] text-slate-400" id="drawer-peak-badge">Standard Rate</span>
+                        <span class="text-xl font-extrabold text-[#181A1D]" id="hero-base-price">₹{{
+                            selected_resource.base_price_paise // 100 }}<span
+                                class="text-xs font-semibold text-stone-500">/hr</span></span>
+                        <span class="block text-[10px] font-bold text-[#5E9E47]">{{ t('pay_advance_upi',
+                            pct=tenant.advance_percentage) }}</span>
                     </div>
                 </div>
 
-                <!-- Payment Choice (Advance vs Full) -->
-                {% if tenant.advance_percentage < 100 %} <div class="grid grid-cols-2 gap-2 text-left">
-                    <label
-                        class="p-3 rounded-xl border border-emerald-500/40 bg-emerald-950/20 cursor-pointer flex flex-col justify-between">
-                        <div class="flex items-center gap-2">
-                            <input type="radio" name="payment_choice" value="advance" checked
-                                class="text-emerald-500 focus:ring-0">
-                            <span class="text-xs font-semibold text-emerald-300">{{ t('advance_pct',
-                                pct=tenant.advance_percentage) }}</span>
+                <!-- Court Specs & Vibe Check Strip -->
+                <div class="grid grid-cols-2 gap-2 pt-1">
+                    <div class="p-2.5 rounded-2xl bg-[#F6F5F0] flex items-center gap-2.5">
+                        <div
+                            class="w-8 h-8 rounded-xl bg-white flex items-center justify-center text-stone-600 shadow-sm">
+                            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                            </svg>
                         </div>
-                        <span class="text-sm font-bold text-slate-100 mt-1" id="advance-amount-label">₹360</span>
-                        <span class="text-[10px] text-slate-400">{{ t('balance_venue') }}</span>
-                    </label>
-                    <label
-                        class="p-3 rounded-xl border border-slate-800 bg-slate-900/60 cursor-pointer flex flex-col justify-between">
-                        <div class="flex items-center gap-2">
-                            <input type="radio" name="payment_choice" value="full"
-                                class="text-emerald-500 focus:ring-0">
-                            <span class="text-xs font-semibold text-slate-300">{{ t('pay_full') }}</span>
+                        <div>
+                            <span class="text-[10px] text-stone-400 font-semibold block">Court Size</span>
+                            <span class="text-xs font-extrabold text-[#181A1D]">25 × 40 m FIFA</span>
                         </div>
-                        <span class="text-sm font-bold text-slate-100 mt-1" id="full-amount-label">₹1,200</span>
-                        <span class="text-[10px] text-slate-400">{{ t('online_100') }}</span>
-                    </label>
-        </div>
-        {% else %}
-        <input type="hidden" name="payment_choice" value="full">
-        {% endif %}
+                    </div>
 
-        <!-- Customer Details with Strict Regex Validation -->
-        <div class="space-y-3">
-            <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1" for="customer-name">{{ t('full_name')
-                    }}</label>
-                <input type="text" name="name" id="customer-name" required minlength="2" maxlength="60"
-                    pattern="[A-Za-z][A-Za-z\s\.\'\-]{1,59}"
-                    title="Enter a valid full name (letters and spaces only, 2 to 60 characters)"
-                    placeholder="e.g. Ramesh Kumar"
-                    class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
-            </div>
-            <div>
-                <label class="block text-xs font-semibold text-slate-400 mb-1" for="customer-phone">{{
-                    t('mobile_number') }}</label>
-                <div
-                    class="flex items-center rounded-xl bg-slate-950 border border-slate-800 focus-within:border-emerald-500">
-                    <span class="pl-3.5 pr-2 text-sm text-slate-500 font-medium">+91</span>
-                    <input type="tel" name="phone" id="customer-phone" required minlength="10" maxlength="10"
-                        pattern="[6-9][0-9]{9}" inputmode="numeric"
-                        oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10)"
-                        title="Enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9"
-                        placeholder="9876543210"
-                        class="w-full pr-3.5 py-2.5 bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none">
+                    <div class="p-2.5 rounded-2xl bg-[#EBF5EA] flex items-center justify-between">
+                        <div class="pl-1">
+                            <span class="text-[10px] text-[#4B8338] font-bold block">Court Vibe Check</span>
+                            <span class="text-xs font-extrabold text-[#1D3515]">{{ slots|selectattr('status', 'equalto',
+                                'AVAILABLE')|list|length }} slots free</span>
+                        </div>
+                        <span
+                            class="px-2 py-1 rounded-full bg-white text-[#4B8338] text-[10px] font-extrabold shadow-sm">
+                            Fast
+                        </span>
+                    </div>
                 </div>
             </div>
+
+            <!-- 2. "Choose a Slot" — Visual Court / Zone Grid (Matches Right Reference Screen A1, B1, C1) -->
+            <div class="space-y-2.5">
+                <div class="flex items-center justify-between px-1">
+                    <label class="text-sm font-extrabold text-[#181A1D]">
+                        {{ t('court_turf_select') if tenant.vertical.value == 'TURF' else t('doctor_select') }}
+                    </label>
+                    <span class="text-[11px] font-semibold text-stone-500">{{ t('pay_rest_venue') }}</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2.5" id="resource-tabs">
+                    {% for r in resources %}
+                    {% set zone_code = 'A' ~ loop.index if 'Turf' in r.name or 'Football' in r.name else 'B' ~
+                    loop.index %}
+                    <button type="button"
+                        onclick="selectResource('{{ r.id }}', '{{ r.name }}', '{{ r.base_price_paise // 100 }}')"
+                        data-resource-id="{{ r.id }}"
+                        class="resource-tab p-3.5 rounded-[20px] text-left transition-all border-2 flex flex-col justify-between min-h-[82px] {% if r.id == selected_resource.id %}bg-[#EBF5EA] border-[#68A856] text-[#1D3515] shadow-sm{% else %}bg-white border-transparent text-stone-500 hover:border-stone-200{% endif %}">
+                        <div class="flex items-center justify-between w-full">
+                            <span
+                                class="text-xs font-extrabold px-2 py-0.5 rounded-lg {% if r.id == selected_resource.id %}bg-[#5E9E47] text-white{% else %}bg-[#F6F5F0] text-stone-500{% endif %}">
+                                {{ zone_code }}
+                            </span>
+                            <span
+                                class="text-xs font-extrabold {% if r.id == selected_resource.id %}text-[#39662A]{% else %}text-stone-400{% endif %}">
+                                ₹{{ r.base_price_paise // 100 }}/hr
+                            </span>
+                        </div>
+                        <span class="text-xs font-extrabold text-[#181A1D] mt-2 line-clamp-1">{{ r.name }}</span>
+                    </button>
+                    {% endfor %}
+                </div>
+
+                <!-- Indoor / Outdoor Legend Pills from Reference -->
+                <div class="flex items-center justify-center gap-2 pt-1">
+                    <span
+                        class="px-3 py-1 rounded-full bg-[#EBF5EA] text-[#39662A] text-[11px] font-bold flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-[#5E9E47]"></span>
+                        A : FIFA AstroTurf
+                    </span>
+                    <span
+                        class="px-3 py-1 rounded-full bg-amber-100/80 text-amber-800 text-[11px] font-bold flex items-center gap-1.5">
+                        <span>☀️</span>
+                        B : Indoor Synthetic
+                    </span>
+                </div>
+            </div>
+
+            <!-- 3. "Choose Date" — Vertical Pill Calendar (Matches Reference 05 Thu, 06 Fri, 07 Sat) -->
+            <div class="space-y-2.5">
+                <div class="flex items-center justify-between px-1">
+                    <label class="text-sm font-extrabold text-[#181A1D]">{{ t('select_date') }}</label>
+                    <span class="text-xs font-bold text-[#5E9E47]" id="selected-date-display">{{
+                        selected_date.strftime('%a, %d %b') }}</span>
+                </div>
+
+                <div class="flex gap-2.5 overflow-x-auto no-scrollbar py-1" id="date-scroll-container">
+                    {% for d in upcoming_dates %}
+                    <button type="button"
+                        onclick="selectDate('{{ d.date }}', '{{ d.day_name }}, {{ d.day_number }} {{ d.month_name }}')"
+                        data-date="{{ d.date }}"
+                        class="date-tab flex-shrink-0 w-[62px] py-3 rounded-[20px] flex flex-col items-center justify-center border-2 transition-all {% if d.date == selected_date.isoformat() %}bg-[#EBF5EA] border-[#68A856] text-[#1D3515] font-extrabold shadow-sm{% else %}bg-white border-transparent text-stone-600 hover:border-stone-200{% endif %}">
+                        <span class="text-base font-extrabold leading-none text-[#181A1D]">
+                            {{ d.day_number }}
+                        </span>
+                        <span
+                            class="text-[11px] font-semibold mt-1 {% if d.date == selected_date.isoformat() %}text-[#39662A]{% else %}text-stone-400{% endif %}">
+                            {{ d.sub_label }}
+                        </span>
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- 4. "Choose a time" — Dynamic Slot Grid (HTMX Swapped) -->
+            <div id="slots-container" class="space-y-3">
+                <div id="slots-grid"
+                    hx-get="/b/{{ tenant.slug }}/slots?resource_id={{ selected_resource.id }}&date={{ selected_date.isoformat() }}"
+                    hx-trigger="refreshSlots from:body">
+                    {% include "public/_slots_grid.html" %}
+                </div>
+            </div>
+
+            <!-- 5. "No. of Players" Selector (Matches Bottom of Right Reference Screen) -->
+            <div class="space-y-2.5 pt-1">
+                <div class="flex items-center justify-between px-1">
+                    <span class="text-sm font-extrabold text-[#181A1D]">No. of Players</span>
+                    <span class="text-[11px] font-semibold text-stone-400" id="players-Per-Head-Hint">Split bill easily
+                        at venue</span>
+                </div>
+                <div class="grid grid-cols-5 gap-2" id="player-count-pills">
+                    {% for count in ['02', '04', '08', '10', '14'] %}
+                    <button type="button" onclick="selectPlayerCount('{{ count }}')" data-players="{{ count }}"
+                        class="player-pill py-2.5 rounded-2xl text-xs font-extrabold border-2 transition-all {% if count == '10' %}bg-[#EBF5EA] border-[#68A856] text-[#1D3515]{% else %}bg-white border-transparent text-stone-500 hover:border-stone-200{% endif %}">
+                        {{ count }}
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+
         </div>
 
-        <!-- DPDP Act Consent Checkbox -->
-        <div class="pt-1">
-            <label class="flex items-start gap-2.5 cursor-pointer">
-                <input type="checkbox" name="dpdp_consent" id="dpdp-consent" value="on" checked required
-                    class="mt-0.5 rounded bg-slate-950 border-slate-700 text-emerald-500 focus:ring-0">
-                <span class="text-[11px] text-slate-400 leading-snug">
-                    {{ t('dpdp_consent_label') }}
+        <!-- Signature Floating Obsidian Pill CTA Bar (Matches Reference "Book now / Confirm Booking ->") -->
+        <div class="fixed bottom-4 left-0 right-0 z-30 px-5 max-w-[430px] mx-auto pointer-events-none">
+            <button type="button" onclick="scrollToSlotsOrOpenFirst()"
+                class="pointer-events-auto w-full bg-[#181A1D] hover:bg-black text-white rounded-full p-2 pl-6 shadow-2xl flex items-center justify-between active:scale-[0.98] transition-all">
+                <div class="text-left">
+                    <span class="text-sm font-extrabold tracking-tight block" id="floating-cta-label">Reserve Your
+                        Court</span>
+                    <span class="text-[11px] text-stone-400 font-medium block" id="floating-cta-sub">Tap any time slot
+                        above to lock for 7m</span>
+                </div>
+                <span
+                    class="w-11 h-11 rounded-full bg-[#A3C962] text-[#181A1D] flex items-center justify-center shadow-md">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
+                    </svg>
                 </span>
-            </label>
+            </button>
         </div>
 
-        <!-- Action Button -->
-        <button type="submit"
-            class="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95 transition-all text-sm flex items-center justify-center gap-2">
-            <span>{{ t('hold_and_pay') }}</span>
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-            </svg>
-        </button>
-        </form>
-    </div>
-</div>
+        <!-- Hidden State Inputs -->
+        <input type="hidden" id="current-resource-id" value="{{ selected_resource.id }}">
+        <input type="hidden" id="current-resource-name" value="{{ selected_resource.name }}">
+        <input type="hidden" id="current-date" value="{{ selected_date.isoformat() }}">
+        <input type="hidden" id="current-players" value="10">
 
+        <!-- 6. Slide-Up Checkout Drawer (Matches Warm Cream & Obsidian Style) -->
+        <div id="drawer-backdrop"
+            class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden transition-opacity opacity-0"
+            onclick="closeCheckoutDrawer()"></div>
+        <div id="checkout-drawer"
+            class="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-[#F6F5F0] border-t border-stone-200 rounded-t-[34px] p-6 z-50 transform translate-y-full transition-transform duration-300 ease-out safe-bottom max-h-[92vh] overflow-y-auto shadow-2xl text-[#181A1D]">
+            <div class="w-12 h-1.5 bg-stone-300 rounded-full mx-auto mb-5 cursor-pointer"
+                onclick="closeCheckoutDrawer()"></div>
+
+            <div id="drawer-content">
+                <form id="hold-form" hx-post="/b/{{ tenant.slug }}/hold" hx-target="#drawer-content" class="space-y-4">
+                    <input type="hidden" name="resource_id" id="form-resource-id">
+                    <input type="hidden" name="date" id="form-date">
+                    <input type="hidden" name="start_time" id="form-start-time">
+                    <input type="hidden" name="end_time" id="form-end-time">
+                    <input type="hidden" name="lang" value="{{ lang }}">
+
+                    <!-- Anti-Bot Invisible Honeypot -->
+                    <div class="hidden" aria-hidden="true">
+                        <input type="text" name="website_url" title="Do not fill" aria-label="Do not fill" tabindex="-1"
+                            autocomplete="off">
+                    </div>
+
+                    <!-- Selected Court Summary Card -->
+                    <div
+                        class="bg-white p-4 rounded-[22px] border border-stone-200/80 flex items-center justify-between shadow-sm">
+                        <div>
+                            <span
+                                class="px-2.5 py-0.5 rounded-full bg-[#EBF5EA] text-[#39662A] text-[10px] font-extrabold uppercase tracking-wider"
+                                id="drawer-peak-badge">
+                                Floodlight Peak
+                            </span>
+                            <h3 class="text-base font-extrabold text-[#181A1D] mt-1" id="drawer-res-name">{{
+                                selected_resource.name }}</h3>
+                            <p class="text-xs text-[#4B8338] font-bold mt-0.5" id="drawer-slot-time">06:00 PM - 07:00 PM
+                            </p>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-2xl font-black text-[#181A1D]" id="drawer-price-display">₹1,200</span>
+                            <span class="block text-[10px] text-stone-400 font-semibold"
+                                id="drawer-per-player-split">₹120 / player (10p)</span>
+                        </div>
+                    </div>
+
+                    <!-- Payment Choice (Advance vs Full) -->
+                    {% if tenant.advance_percentage < 100 %} <div class="grid grid-cols-2 gap-2.5 text-left">
+                        <label
+                            class="p-3.5 rounded-[20px] border-2 border-[#68A856] bg-[#EBF5EA] cursor-pointer flex flex-col justify-between">
+                            <div class="flex items-center gap-2">
+                                <input type="radio" name="payment_choice" value="advance" checked title="Pay Advance"
+                                    class="text-[#5E9E47] focus:ring-0">
+                                <span class="text-xs font-extrabold text-[#1D3515]">{{ t('advance_pct',
+                                    pct=tenant.advance_percentage) }}</span>
+                            </div>
+                            <span class="text-base font-black text-[#181A1D] mt-1.5"
+                                id="advance-amount-label">₹360</span>
+                            <span class="text-[10px] text-[#39662A] font-semibold">{{ t('balance_venue') }}</span>
+                        </label>
+                        <label
+                            class="p-3.5 rounded-[20px] border-2 border-stone-200 bg-white cursor-pointer flex flex-col justify-between">
+                            <div class="flex items-center gap-2">
+                                <input type="radio" name="payment_choice" value="full" title="Pay Full"
+                                    class="text-[#5E9E47] focus:ring-0">
+                                <span class="text-xs font-extrabold text-stone-700">{{ t('pay_full') }}</span>
+                            </div>
+                            <span class="text-base font-black text-[#181A1D] mt-1.5"
+                                id="full-amount-label">₹1,200</span>
+                            <span class="text-[10px] text-stone-400 font-semibold">{{ t('online_100') }}</span>
+                        </label>
+            </div>
+            {% else %}
+            <input type="hidden" name="payment_choice" value="full">
+            {% endif %}
+
+            <!-- Customer Inputs -->
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-stone-600 mb-1" for="customer-name">{{ t('full_name')
+                        }}</label>
+                    <input type="text" name="name" id="customer-name" required minlength="2" maxlength="60"
+                        pattern="[A-Za-z][A-Za-z\s\.\'\-]{1,59}" title="Enter your full name (letters and spaces only)"
+                        placeholder="e.g. Karthik Vijay"
+                        class="w-full px-4 py-3 rounded-2xl bg-white border border-stone-200 text-sm font-semibold text-[#181A1D] placeholder-stone-400 focus:outline-none focus:border-[#5E9E47]">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-stone-600 mb-1" for="customer-phone">{{
+                        t('mobile_number') }}</label>
+                    <div
+                        class="flex items-center rounded-2xl bg-white border border-stone-200 focus-within:border-[#5E9E47]">
+                        <span class="pl-4 pr-2 text-sm text-stone-400 font-bold">+91</span>
+                        <input type="tel" name="phone" id="customer-phone" required minlength="10" maxlength="10"
+                            pattern="[6-9][0-9]{9}" inputmode="numeric"
+                            oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10)"
+                            title="Enter a valid 10-digit Indian WhatsApp mobile number" placeholder="9876543210"
+                            class="w-full pr-4 py-3 bg-transparent text-sm font-semibold text-[#181A1D] placeholder-stone-400 focus:outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <!-- DPDP Consent -->
+            <div class="pt-1">
+                <label class="flex items-start gap-2.5 cursor-pointer">
+                    <input type="checkbox" name="dpdp_consent" id="dpdp-consent" title="DPDP Consent" value="on" checked
+                        required class="mt-0.5 rounded border-stone-300 text-[#5E9E47] focus:ring-0">
+                    <span class="text-[11px] text-stone-500 leading-snug font-medium">
+                        {{ t('dpdp_consent_label') }}
+                    </span>
+                </label>
+            </div>
+
+            <!-- Signature Obsidian Pill Submit Button with Lime Circle Arrow -->
+            <button type="submit"
+                class="w-full bg-[#181A1D] hover:bg-black text-white rounded-full p-2 pl-6 shadow-xl flex items-center justify-between active:scale-95 transition-all">
+                <span class="text-sm font-extrabold">{{ t('hold_and_pay') }}</span>
+                <span class="w-10 h-10 rounded-full bg-[#A3C962] text-[#181A1D] flex items-center justify-center">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
+                    </svg>
+                </span>
+            </button>
+            </form>
+        </div>
+    </div>
+
+</div>
 </div>
 
 <!-- Razorpay Standard Checkout SDK -->
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
-<!-- Client-Side State Scripts -->
 <script>
     let activeResourceId = document.getElementById('current-resource-id').value;
     let activeResourceName = document.getElementById('current-resource-name').value;
     let activeDate = document.getElementById('current-date').value;
+    let activePlayers = 10;
+    let lastSelectedSlotPrice = {{ selected_resource.base_price_paise // 100 }};
     const tenantAdvancePct = {{ tenant.advance_percentage }};
     const isClinicVertical = "{{ tenant.vertical.value }}" === "CLINIC";
 
-    function selectResource(resId, resName) {
+    const courtPhotos = [
+        "https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&w=900&q=80",
+        "https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?auto=format&fit=crop&w=900&q=80",
+        "https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=900&q=80"
+    ];
+
+    function selectResource(resId, resName, baseRateInr) {
         activeResourceId = resId;
         activeResourceName = resName;
         document.getElementById('current-resource-id').value = resId;
         document.getElementById('current-resource-name').value = resName;
+        document.getElementById('hero-resource-title').textContent = resName;
+        if (baseRateInr) {
+            document.getElementById('hero-base-price').innerHTML = `₹${baseRateInr}<span class="text-xs font-semibold text-stone-500">/hr</span>`;
+        }
+
+        // Swap hero image based on sport type
+        const heroImg = document.getElementById('court-hero-image');
+        if (heroImg) {
+            heroImg.src = resName.toLowerCase().includes('badminton') ? courtPhotos[1] : courtPhotos[0];
+        }
 
         document.querySelectorAll('.resource-tab').forEach(tab => {
             if (tab.dataset.resourceId === resId) {
-                tab.className = "resource-tab px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border flex items-center gap-2 bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/20";
+                tab.className = "resource-tab p-3.5 rounded-[20px] text-left transition-all border-2 flex flex-col justify-between min-h-[82px] bg-[#EBF5EA] border-[#68A856] text-[#1D3515] shadow-sm";
             } else {
-                tab.className = "resource-tab px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border flex items-center gap-2 bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800";
+                tab.className = "resource-tab p-3.5 rounded-[20px] text-left transition-all border-2 flex flex-col justify-between min-h-[82px] bg-white border-transparent text-stone-500 hover:border-stone-200";
             }
         });
 
@@ -281,13 +461,28 @@
 
         document.querySelectorAll('.date-tab').forEach(tab => {
             if (tab.dataset.date === dateVal) {
-                tab.className = "date-tab flex-shrink-0 w-16 py-2.5 rounded-xl flex flex-col items-center justify-center border transition-all bg-slate-100 text-slate-950 border-white font-bold shadow-lg";
+                tab.className = "date-tab flex-shrink-0 w-[62px] py-3 rounded-[20px] flex flex-col items-center justify-center border-2 transition-all bg-[#EBF5EA] border-[#68A856] text-[#1D3515] font-extrabold shadow-sm";
             } else {
-                tab.className = "date-tab flex-shrink-0 w-16 py-2.5 rounded-xl flex flex-col items-center justify-center border transition-all bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800/80";
+                tab.className = "date-tab flex-shrink-0 w-[62px] py-3 rounded-[20px] flex flex-col items-center justify-center border-2 transition-all bg-white border-transparent text-stone-600 hover:border-stone-200";
             }
         });
 
         fetchSlots();
+    }
+
+    function selectPlayerCount(countStr) {
+        activePlayers = parseInt(countStr, 10) || 10;
+        document.getElementById('current-players').value = countStr;
+        document.querySelectorAll('.player-pill').forEach(btn => {
+            if (btn.dataset.players === countStr) {
+                btn.className = "player-pill py-2.5 rounded-2xl text-xs font-extrabold border-2 transition-all bg-[#EBF5EA] border-[#68A856] text-[#1D3515]";
+            } else {
+                btn.className = "player-pill py-2.5 rounded-2xl text-xs font-extrabold border-2 transition-all bg-white border-transparent text-stone-500 hover:border-stone-200";
+            }
+        });
+        const perPlayer = Math.round(lastSelectedSlotPrice / activePlayers);
+        const hintEl = document.getElementById('players-Per-Head-Hint');
+        if (hintEl) hintEl.textContent = `~₹${perPlayer} per player (${activePlayers} players)`;
     }
 
     function fetchSlots() {
@@ -295,7 +490,17 @@
         htmx.ajax('GET', url, { target: '#slots-grid', swap: 'innerHTML' });
     }
 
+    function scrollToSlotsOrOpenFirst() {
+        const firstSlotBtn = document.querySelector('.slot-pill-available');
+        if (firstSlotBtn) {
+            firstSlotBtn.click();
+        } else {
+            document.getElementById('slots-container').scrollIntoView({ behavior: 'smooth' });
+        }
+    }
+
     function openCheckoutDrawer(slot) {
+        lastSelectedSlotPrice = slot.priceRupees;
         document.getElementById('form-resource-id').value = activeResourceId;
         document.getElementById('form-date').value = activeDate;
         document.getElementById('form-start-time').value = slot.startTime;
@@ -304,10 +509,16 @@
         document.getElementById('drawer-res-name').textContent = activeResourceName;
         document.getElementById('drawer-slot-time').textContent = slot.timeLabel;
         document.getElementById('drawer-price-display').textContent = `₹${slot.priceRupees}`;
+
+        const splitEl = document.getElementById('drawer-per-player-split');
+        if (splitEl) {
+            splitEl.textContent = `₹${Math.round(slot.priceRupees / activePlayers)} / player (${activePlayers}p)`;
+        }
+
         if (isClinicVertical) {
-            document.getElementById('drawer-peak-badge').textContent = "Consultation Fee";
+            document.getElementById('drawer-peak-badge').textContent = "Consultation Slot";
         } else {
-            document.getElementById('drawer-peak-badge').textContent = slot.isPeak ? "⚡ Floodlight Peak Rate" : "Standard Day Rate";
+            document.getElementById('drawer-peak-badge').textContent = slot.isPeak ? "⚡ Floodlight Peak" : "☀️ Day Off-Peak";
         }
 
         const advanceAmount = Math.round(slot.priceRupees * (tenantAdvancePct / 100));
