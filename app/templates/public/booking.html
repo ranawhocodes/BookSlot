@@ -1,22 +1,24 @@
 {% extends "base.html" %}
-
 {% block title %}{{ tenant.name }} | Reserve Your Court{% endblock %}
 
 {% block content %}
 <div class="min-h-screen w-full bg-[#E8E6DC] flex justify-center md:py-6 md:px-4">
     <!-- Mobile Phone App Frame -->
-    <div
+    <div id="booking-app-config" data-slug="{{ tenant.slug }}" data-lang="{{ lang }}"
+        data-vertical="{{ tenant.vertical.value }}" data-advance-pct="{{ tenant.advance_percentage }}"
+        data-base-price-rupees="{{ selected_resource.base_price_paise // 100 }}"
+        data-book-arrow-label="{{ t('book_arrow') }}"
         class="w-full max-w-[430px] bg-[#F6F5F0] md:rounded-[42px] md:shadow-2xl md:border-[6px] md:border-white/80 min-h-screen md:min-h-[860px] flex flex-col justify-between pb-28 relative overflow-x-hidden text-[#181A1D]">
 
         <!-- Top App Navigation Bar -->
         <header
             class="px-5 pt-5 pb-3 flex items-center justify-between sticky top-0 z-20 bg-[#F6F5F0]/90 backdrop-blur-md">
-            <a href="/dashboard?slug={{ tenant.slug }}" title="Staff Dashboard" aria-label="Staff Dashboard"
+            <button type="button" onclick="handleCustomerBack()" title="Go Back" aria-label="Go Back"
                 class="w-10 h-10 rounded-full bg-white shadow-sm border border-stone-200/70 flex items-center justify-center text-[#181A1D] hover:bg-stone-50 active:scale-95 transition-all">
                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 19l-7-7 7-7" />
                 </svg>
-            </a>
+            </button>
 
             <div class="text-center">
                 <span class="text-[11px] font-bold uppercase tracking-widest text-[#5E9E47] block">
@@ -54,7 +56,7 @@
         <!-- Main Scrollable Content -->
         <div class="px-5 space-y-6 flex-1">
 
-            <!-- 1. Court Showcase Hero Card (Matches Left & Center Reference Screen) -->
+            <!-- 1. Court Showcase Hero Card -->
             <div class="bg-white rounded-[28px] p-3.5 shadow-sm border border-stone-200/60 space-y-3.5">
                 <div class="relative h-48 w-full rounded-[22px] overflow-hidden bg-[#181A1D] group">
                     <img id="court-hero-image"
@@ -75,22 +77,9 @@
                         <span class="w-2 h-2 rounded-full bg-[#5E9E47] animate-ping"></span>
                         <span>Live Turf</span>
                     </div>
-
-                    <!-- Pagination Dots & Thumbnail Overlay (+4) -->
-                    <div class="absolute bottom-3 left-4 flex items-center gap-1.5">
-                        <span class="w-2.5 h-2 rounded-full bg-[#A3C962]"></span>
-                        <span class="w-1.5 h-1.5 rounded-full bg-white/60"></span>
-                        <span class="w-1.5 h-1.5 rounded-full bg-white/60"></span>
-                        <span class="w-1.5 h-1.5 rounded-full bg-white/60"></span>
-                    </div>
-
-                    <div
-                        class="absolute bottom-2.5 right-2.5 w-12 h-12 rounded-2xl bg-black/80 border border-white/30 backdrop-blur-md flex items-center justify-center text-white text-xs font-extrabold shadow-lg">
-                        +4
-                    </div>
                 </div>
 
-                <!-- Title, Location & Rate Row -->
+                <!-- Title, Location & Rate Row (FIXED #3: Two-line "Pay 30% Advance" / "To Book") -->
                 <div class="px-1 flex items-start justify-between gap-2">
                     <div>
                         <h2 class="text-lg font-extrabold text-[#181A1D] tracking-tight" id="hero-resource-title">{{
@@ -116,13 +105,13 @@
                             </span>
                         </div>
                     </div>
-
-                    <div class="text-right">
+                    <div class="text-right flex-shrink-0">
                         <span class="text-xl font-extrabold text-[#181A1D]" id="hero-base-price">₹{{
                             selected_resource.base_price_paise // 100 }}<span
                                 class="text-xs font-semibold text-stone-500">/hr</span></span>
-                        <span class="block text-[10px] font-bold text-[#5E9E47]">{{ t('pay_advance_upi',
-                            pct=tenant.advance_percentage) }}</span>
+                        <span class="block text-[10px] font-bold text-[#5E9E47] leading-tight mt-0.5 max-w-[85px] ml-auto">
+                            Pay {{ tenant.advance_percentage }}% Advance To Book
+                        </span>
                     </div>
                 </div>
 
@@ -141,7 +130,6 @@
                             <span class="text-xs font-extrabold text-[#181A1D]">25 × 40 m FIFA</span>
                         </div>
                     </div>
-
                     <div class="p-2.5 rounded-2xl bg-[#EBF5EA] flex items-center justify-between">
                         <div class="pl-1">
                             <span class="text-[10px] text-[#4B8338] font-bold block">Court Vibe Check</span>
@@ -156,7 +144,7 @@
                 </div>
             </div>
 
-            <!-- 2. "Choose a Slot" — Visual Court / Zone Grid (Matches Right Reference Screen A1, B1, C1) -->
+            <!-- 2. "Choose a Slot" Visual Court / Zone Grid -->
             <div class="space-y-2.5">
                 <div class="flex items-center justify-between px-1">
                     <label class="text-sm font-extrabold text-[#181A1D]">
@@ -164,14 +152,14 @@
                     </label>
                     <span class="text-[11px] font-semibold text-stone-500">{{ t('pay_rest_venue') }}</span>
                 </div>
-
                 <div class="grid grid-cols-2 gap-2.5" id="resource-tabs">
                     {% for r in resources %}
                     {% set zone_code = 'A' ~ loop.index if 'Turf' in r.name or 'Football' in r.name else 'B' ~
                     loop.index %}
                     <button type="button"
-                        onclick="selectResource('{{ r.id }}', '{{ r.name }}', '{{ r.base_price_paise // 100 }}')"
-                        data-resource-id="{{ r.id }}"
+                        onclick="selectResource(this.dataset.resourceId, this.dataset.resourceName, this.dataset.basePrice)"
+                        data-resource-id="{{ r.id }}" data-resource-name="{{ r.name }}"
+                        data-base-price="{{ r.base_price_paise // 100 }}"
                         class="resource-tab p-3.5 rounded-[20px] text-left transition-all border-2 flex flex-col justify-between min-h-[82px] {% if r.id == selected_resource.id %}bg-[#EBF5EA] border-[#68A856] text-[#1D3515] shadow-sm{% else %}bg-white border-transparent text-stone-500 hover:border-stone-200{% endif %}">
                         <div class="flex items-center justify-between w-full">
                             <span
@@ -188,7 +176,6 @@
                     {% endfor %}
                 </div>
 
-                <!-- Indoor / Outdoor Legend Pills from Reference -->
                 <div class="flex items-center justify-center gap-2 pt-1">
                     <span
                         class="px-3 py-1 rounded-full bg-[#EBF5EA] text-[#39662A] text-[11px] font-bold flex items-center gap-1.5">
@@ -197,25 +184,24 @@
                     </span>
                     <span
                         class="px-3 py-1 rounded-full bg-amber-100/80 text-amber-800 text-[11px] font-bold flex items-center gap-1.5">
-                        <span>☀️</span>
+                        <span>🏸</span>
                         B : Indoor Synthetic
                     </span>
                 </div>
             </div>
 
-            <!-- 3. "Choose Date" — Vertical Pill Calendar (Matches Reference 05 Thu, 06 Fri, 07 Sat) -->
+            <!-- 3. "Choose Date" Vertical Pill Calendar -->
             <div class="space-y-2.5">
                 <div class="flex items-center justify-between px-1">
                     <label class="text-sm font-extrabold text-[#181A1D]">{{ t('select_date') }}</label>
                     <span class="text-xs font-bold text-[#5E9E47]" id="selected-date-display">{{
                         selected_date.strftime('%a, %d %b') }}</span>
                 </div>
-
                 <div class="flex gap-2.5 overflow-x-auto no-scrollbar py-1" id="date-scroll-container">
                     {% for d in upcoming_dates %}
-                    <button type="button"
-                        onclick="selectDate('{{ d.date }}', '{{ d.day_name }}, {{ d.day_number }} {{ d.month_name }}')"
+                    <button type="button" onclick="selectDate(this.dataset.date, this.dataset.displayStr)"
                         data-date="{{ d.date }}"
+                        data-display-str="{{ d.day_name }}, {{ d.day_number }} {{ d.month_name }}"
                         class="date-tab flex-shrink-0 w-[62px] py-3 rounded-[20px] flex flex-col items-center justify-center border-2 transition-all {% if d.date == selected_date.isoformat() %}bg-[#EBF5EA] border-[#68A856] text-[#1D3515] font-extrabold shadow-sm{% else %}bg-white border-transparent text-stone-600 hover:border-stone-200{% endif %}">
                         <span class="text-base font-extrabold leading-none text-[#181A1D]">
                             {{ d.day_number }}
@@ -229,7 +215,7 @@
                 </div>
             </div>
 
-            <!-- 4. "Choose a time" — Dynamic Slot Grid (HTMX Swapped) -->
+            <!-- 4. "Choose a time" Dynamic Slot Grid (HTMX Swapped) -->
             <div id="slots-container" class="space-y-3">
                 <div id="slots-grid"
                     hx-get="/b/{{ tenant.slug }}/slots?resource_id={{ selected_resource.id }}&date={{ selected_date.isoformat() }}"
@@ -238,37 +224,42 @@
                 </div>
             </div>
 
-            <!-- 5. "No. of Players" Selector (Matches Bottom of Right Reference Screen) -->
-            <div class="space-y-2.5 pt-1">
+            <!-- 5. "No. of Players" Input (FIXED: Removed demo placeholder text and updated label to "Wanna Split the Bill?") -->
+            <div class="space-y-2 pt-1">
                 <div class="flex items-center justify-between px-1">
-                    <span class="text-sm font-extrabold text-[#181A1D]">No. of Players</span>
-                    <span class="text-[11px] font-semibold text-stone-400" id="players-Per-Head-Hint">Split bill easily
-                        at venue</span>
+                    <label for="player-count-input" class="text-sm font-extrabold text-[#181A1D]">
+                        No. of Players
+                    </label>
+                    <span class="text-[11px] font-semibold text-[#39662A]" id="players-Per-Head-Hint">
+                        Wanna Split the Bill?
+                    </span>
                 </div>
-                <div class="grid grid-cols-5 gap-2" id="player-count-pills">
-                    {% for count in ['02', '04', '08', '10', '14'] %}
-                    <button type="button" onclick="selectPlayerCount('{{ count }}')" data-players="{{ count }}"
-                        class="player-pill py-2.5 rounded-2xl text-xs font-extrabold border-2 transition-all {% if count == '10' %}bg-[#EBF5EA] border-[#68A856] text-[#1D3515]{% else %}bg-white border-transparent text-stone-500 hover:border-stone-200{% endif %}">
-                        {{ count }}
-                    </button>
-                    {% endfor %}
+                <div class="relative">
+                    <input type="number" id="player-count-input" min="1" max="25" step="1" inputmode="numeric"
+                        aria-label="No. of Players" oninput="handlePlayerCountInput(this.value)"
+                        class="w-full px-4 py-3 rounded-2xl bg-white border-2 border-stone-200/80 text-sm font-extrabold text-[#181A1D] focus:outline-none focus:border-[#5E9E47] transition-all">
                 </div>
+                <p id="player-count-warning"
+                    class="hidden px-3.5 py-2.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-bold leading-snug">
+                </p>
             </div>
 
         </div>
 
-        <!-- Signature Floating Obsidian Pill CTA Bar (Matches Reference "Book now / Confirm Booking ->") -->
+        <!-- Signature Floating Obsidian Pill CTA Bar -->
         <div class="fixed bottom-4 left-0 right-0 z-30 px-5 max-w-[430px] mx-auto pointer-events-none">
-            <button type="button" onclick="scrollToSlotsOrOpenFirst()"
+            <button type="button" onclick="proceedWithSelectedSlots()"
                 class="pointer-events-auto w-full bg-[#181A1D] hover:bg-black text-white rounded-full p-2 pl-6 shadow-2xl flex items-center justify-between active:scale-[0.98] transition-all">
-                <div class="text-left">
-                    <span class="text-sm font-extrabold tracking-tight block" id="floating-cta-label">Reserve Your
-                        Court</span>
-                    <span class="text-[11px] text-stone-400 font-medium block" id="floating-cta-sub">Tap any time slot
-                        above to lock for 7m</span>
+                <div class="text-left pr-2 overflow-hidden">
+                    <span class="text-sm font-extrabold tracking-tight block truncate" id="floating-cta-label">
+                        Reserve Your Court
+                    </span>
+                    <span class="text-[11px] text-stone-400 font-medium block truncate" id="floating-cta-sub">
+                        Tap one or more slots above, then tap arrow
+                    </span>
                 </div>
                 <span
-                    class="w-11 h-11 rounded-full bg-[#A3C962] text-[#181A1D] flex items-center justify-center shadow-md">
+                    class="w-11 h-11 flex-shrink-0 rounded-full bg-[#A3C962] text-[#181A1D] flex items-center justify-center shadow-md">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
                     </svg>
@@ -280,9 +271,9 @@
         <input type="hidden" id="current-resource-id" value="{{ selected_resource.id }}">
         <input type="hidden" id="current-resource-name" value="{{ selected_resource.name }}">
         <input type="hidden" id="current-date" value="{{ selected_date.isoformat() }}">
-        <input type="hidden" id="current-players" value="10">
+        <input type="hidden" id="current-players" value="">
 
-        <!-- 6. Slide-Up Checkout Drawer (Matches Warm Cream & Obsidian Style) -->
+        <!-- 6. Slide-Up Checkout Drawer -->
         <div id="drawer-backdrop"
             class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 hidden transition-opacity opacity-0"
             onclick="closeCheckoutDrawer()"></div>
@@ -297,6 +288,7 @@
                     <input type="hidden" name="date" id="form-date">
                     <input type="hidden" name="start_time" id="form-start-time">
                     <input type="hidden" name="end_time" id="form-end-time">
+                    <input type="hidden" name="selected_slots" id="form-selected-slots">
                     <input type="hidden" name="lang" value="{{ lang }}">
 
                     <!-- Anti-Bot Invisible Honeypot -->
@@ -308,7 +300,7 @@
                     <!-- Selected Court Summary Card -->
                     <div
                         class="bg-white p-4 rounded-[22px] border border-stone-200/80 flex items-center justify-between shadow-sm">
-                        <div>
+                        <div class="pr-2">
                             <span
                                 class="px-2.5 py-0.5 rounded-full bg-[#EBF5EA] text-[#39662A] text-[10px] font-extrabold uppercase tracking-wider"
                                 id="drawer-peak-badge">
@@ -316,13 +308,14 @@
                             </span>
                             <h3 class="text-base font-extrabold text-[#181A1D] mt-1" id="drawer-res-name">{{
                                 selected_resource.name }}</h3>
-                            <p class="text-xs text-[#4B8338] font-bold mt-0.5" id="drawer-slot-time">06:00 PM - 07:00 PM
+                            <p class="text-xs text-[#4B8338] font-bold mt-0.5 font-mono" id="drawer-slot-time">18:00 -
+                                19:00
                             </p>
                         </div>
-                        <div class="text-right">
+                        <div class="text-right flex-shrink-0">
                             <span class="text-2xl font-black text-[#181A1D]" id="drawer-price-display">₹1,200</span>
                             <span class="block text-[10px] text-stone-400 font-semibold"
-                                id="drawer-per-player-split">₹120 / player (10p)</span>
+                                id="drawer-per-player-split">Wanna Split the Bill?</span>
                         </div>
                     </div>
 
@@ -359,8 +352,8 @@
             <!-- Customer Inputs -->
             <div class="space-y-3">
                 <div>
-                    <label class="block text-xs font-bold text-stone-600 mb-1" for="customer-name">{{ t('full_name')
-                        }}</label>
+                    <label class="block text-xs font-bold text-stone-600 mb-1" for="customer-name">{{
+                        t('full_name') }}</label>
                     <input type="text" name="name" id="customer-name" required minlength="2" maxlength="60"
                         pattern="[A-Za-z][A-Za-z\s\.\'\-]{1,59}" title="Enter your full name (letters and spaces only)"
                         placeholder="e.g. Karthik Vijay"
@@ -405,21 +398,25 @@
             </form>
         </div>
     </div>
-
 </div>
 </div>
 
 <!-- Razorpay Standard Checkout SDK -->
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-
 <script>
+    const appConfigEl = document.getElementById('booking-app-config');
+    const tenantSlug = appConfigEl.dataset.slug;
+    const currentLang = appConfigEl.dataset.lang;
+    const isClinicVertical = appConfigEl.dataset.vertical === 'CLINIC';
+    const tenantAdvancePct = parseInt(appConfigEl.dataset.advancePct, 10) || 30;
+    const bookArrowText = appConfigEl.dataset.bookArrowLabel || 'Book →';
+
+    let baseSlotPriceRupees = parseInt(appConfigEl.dataset.basePriceRupees, 10) || 800;
     let activeResourceId = document.getElementById('current-resource-id').value;
     let activeResourceName = document.getElementById('current-resource-name').value;
     let activeDate = document.getElementById('current-date').value;
-    let activePlayers = 10;
-    let lastSelectedSlotPrice = {{ selected_resource.base_price_paise // 100 }};
-    const tenantAdvancePct = {{ tenant.advance_percentage }};
-    const isClinicVertical = "{{ tenant.vertical.value }}" === "CLINIC";
+    let activePlayers = null;
+    let selectedSlots = [];
 
     const courtPhotos = [
         "https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&w=900&q=80",
@@ -427,9 +424,29 @@
         "https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=900&q=80"
     ];
 
+    function handleCustomerBack() {
+        const drawer = document.getElementById('checkout-drawer');
+        if (drawer && !drawer.classList.contains('translate-y-full')) {
+            closeCheckoutDrawer();
+            return;
+        }
+        if (selectedSlots.length > 0) {
+            clearSelectedSlots();
+            fetchSlots();
+            return;
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function clearSelectedSlots() {
+        selectedSlots = [];
+        updateFloatingCtaBar();
+    }
+
     function selectResource(resId, resName, baseRateInr) {
         activeResourceId = resId;
         activeResourceName = resName;
+        baseSlotPriceRupees = parseInt(baseRateInr, 10) || baseSlotPriceRupees;
         document.getElementById('current-resource-id').value = resId;
         document.getElementById('current-resource-name').value = resName;
         document.getElementById('hero-resource-title').textContent = resName;
@@ -437,7 +454,6 @@
             document.getElementById('hero-base-price').innerHTML = `₹${baseRateInr}<span class="text-xs font-semibold text-stone-500">/hr</span>`;
         }
 
-        // Swap hero image based on sport type
         const heroImg = document.getElementById('court-hero-image');
         if (heroImg) {
             heroImg.src = resName.toLowerCase().includes('badminton') ? courtPhotos[1] : courtPhotos[0];
@@ -450,7 +466,7 @@
                 tab.className = "resource-tab p-3.5 rounded-[20px] text-left transition-all border-2 flex flex-col justify-between min-h-[82px] bg-white border-transparent text-stone-500 hover:border-stone-200";
             }
         });
-
+        clearSelectedSlots();
         fetchSlots();
     }
 
@@ -466,67 +482,179 @@
                 tab.className = "date-tab flex-shrink-0 w-[62px] py-3 rounded-[20px] flex flex-col items-center justify-center border-2 transition-all bg-white border-transparent text-stone-600 hover:border-stone-200";
             }
         });
-
+        clearSelectedSlots();
         fetchSlots();
     }
 
-    function selectPlayerCount(countStr) {
-        activePlayers = parseInt(countStr, 10) || 10;
-        document.getElementById('current-players').value = countStr;
-        document.querySelectorAll('.player-pill').forEach(btn => {
-            if (btn.dataset.players === countStr) {
-                btn.className = "player-pill py-2.5 rounded-2xl text-xs font-extrabold border-2 transition-all bg-[#EBF5EA] border-[#68A856] text-[#1D3515]";
-            } else {
-                btn.className = "player-pill py-2.5 rounded-2xl text-xs font-extrabold border-2 transition-all bg-white border-transparent text-stone-500 hover:border-stone-200";
-            }
-        });
-        const perPlayer = Math.round(lastSelectedSlotPrice / activePlayers);
+    function handlePlayerCountInput(rawVal) {
+        const trimmed = (rawVal || "").trim();
+        const warningEl = document.getElementById('player-count-warning');
         const hintEl = document.getElementById('players-Per-Head-Hint');
-        if (hintEl) hintEl.textContent = `~₹${perPlayer} per player (${activePlayers} players)`;
+        const inputEl = document.getElementById('player-count-input');
+
+        if (trimmed === "") {
+            activePlayers = null;
+            document.getElementById('current-players').value = "";
+            warningEl.classList.add('hidden');
+            warningEl.textContent = "";
+            inputEl.classList.remove('border-rose-500');
+            if (hintEl) hintEl.textContent = "Wanna Split the Bill?";
+            return true;
+        }
+
+        const num = Number(trimmed);
+        if (!Number.isInteger(num) || num <= 0) {
+            activePlayers = null;
+            warningEl.textContent = "0 is not a valid input. Please enter at least 1 player, or leave this field blank.";
+            warningEl.classList.remove('hidden');
+            inputEl.classList.add('border-rose-500');
+            if (hintEl) hintEl.textContent = "Wanna Split the Bill?";
+            return false;
+        }
+
+        if (num > 25) {
+            activePlayers = null;
+            warningEl.textContent = "We appreciate your group size, but the maximum capacity of the venue is 25 players. Please lower the number of players.";
+            warningEl.classList.remove('hidden');
+            inputEl.classList.add('border-rose-500');
+            if (hintEl) hintEl.textContent = "Wanna Split the Bill?";
+            return false;
+        }
+
+        activePlayers = num;
+        document.getElementById('current-players').value = String(num);
+        warningEl.classList.add('hidden');
+        warningEl.textContent = "";
+        inputEl.classList.remove('border-rose-500');
+
+        const totalRupees = getSelectedTotalRupees() || baseSlotPriceRupees;
+        const perPlayer = Math.round(totalRupees / activePlayers);
+        if (hintEl) hintEl.textContent = `~₹${perPlayer} / player (${activePlayers}p)`;
+        return true;
     }
 
-    function fetchSlots() {
-        const url = `/b/{{ tenant.slug }}/slots?resource_id=${activeResourceId}&date=${activeDate}&lang={{ lang }}`;
-        htmx.ajax('GET', url, { target: '#slots-grid', swap: 'innerHTML' });
+    function getSelectedTotalRupees() {
+        return selectedSlots.reduce((sum, s) => sum + s.priceRupees, 0);
     }
 
-    function scrollToSlotsOrOpenFirst() {
-        const firstSlotBtn = document.querySelector('.slot-pill-available');
-        if (firstSlotBtn) {
-            firstSlotBtn.click();
+    function toggleSlotSelection(btnEl) {
+        const slot = {
+            startTime: btnEl.dataset.startTime,
+            endTime: btnEl.dataset.endTime,
+            startLabel: btnEl.dataset.startLabel,
+            timeLabel: btnEl.dataset.timeLabel,
+            pricePaise: parseInt(btnEl.dataset.pricePaise, 10) || 0,
+            priceRupees: parseInt(btnEl.dataset.priceRupees, 10) || 0,
+            isPeak: btnEl.dataset.isPeak === 'true'
+        };
+
+        const idx = selectedSlots.findIndex(s => s.startTime === slot.startTime);
+        if (idx >= 0) {
+            selectedSlots.splice(idx, 1);
+            btnEl.classList.remove('!bg-[#181A1D]', '!border-[#181A1D]', '!text-white', 'ring-2', 'ring-[#A3C962]');
+            const statusText = btnEl.querySelector('.slot-action-label');
+            if (statusText) statusText.textContent = bookArrowText;
         } else {
-            document.getElementById('slots-container').scrollIntoView({ behavior: 'smooth' });
+            selectedSlots.push(slot);
+            selectedSlots.sort((a, b) => a.startTime.localeCompare(b.startTime));
+            btnEl.classList.add('!bg-[#181A1D]', '!border-[#181A1D]', '!text-white', 'ring-2', 'ring-[#A3C962]');
+            const statusText = btnEl.querySelector('.slot-action-label');
+            if (statusText) statusText.textContent = "Selected ✓";
+        }
+        updateFloatingCtaBar();
+        if (activePlayers) {
+            handlePlayerCountInput(String(activePlayers));
         }
     }
 
-    function openCheckoutDrawer(slot) {
-        lastSelectedSlotPrice = slot.priceRupees;
+    function updateFloatingCtaBar() {
+        const labelEl = document.getElementById('floating-cta-label');
+        const subEl = document.getElementById('floating-cta-sub');
+
+        if (selectedSlots.length === 0) {
+            labelEl.textContent = "Reserve Your Court";
+            subEl.textContent = "Tap one or more slots above, then tap arrow";
+            return;
+        }
+
+        const totalRupees = getSelectedTotalRupees();
+        const advRupees = Math.round(totalRupees * (tenantAdvancePct / 100));
+        const slotWord = selectedSlots.length === 1 ? "1 Slot" : `${selectedSlots.length} Slots`;
+        labelEl.textContent = `${slotWord} Selected • ₹${totalRupees} (Adv ₹${advRupees})`;
+
+        const timesSummary = selectedSlots.map(s => s.startLabel || s.startTime).join(', ');
+        subEl.textContent = `${timesSummary} • Tap green arrow to book`;
+    }
+
+    function fetchSlots() {
+        const url = `/b/${tenantSlug}/slots?resource_id=${activeResourceId}&date=${activeDate}&lang=${currentLang}`;
+        htmx.ajax('GET', url, { target: '#slots-grid', swap: 'innerHTML' });
+    }
+
+    function proceedWithSelectedSlots() {
+        const inputEl = document.getElementById('player-count-input');
+        if (inputEl && !handlePlayerCountInput(inputEl.value)) {
+            inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            inputEl.focus();
+            return;
+        }
+
+        if (selectedSlots.length === 0) {
+            document.getElementById('slots-container').scrollIntoView({ behavior: 'smooth' });
+            return;
+        }
+
+        openCheckoutDrawer();
+    }
+
+    function openCheckoutDrawer() {
+        if (selectedSlots.length === 0) return;
+
+        const totalRupees = getSelectedTotalRupees();
+        const firstSlot = selectedSlots[0];
+        const lastSlot = selectedSlots[selectedSlots.length - 1];
+        const anyPeak = selectedSlots.some(s => s.isPeak);
+
         document.getElementById('form-resource-id').value = activeResourceId;
         document.getElementById('form-date').value = activeDate;
-        document.getElementById('form-start-time').value = slot.startTime;
-        document.getElementById('form-end-time').value = slot.endTime;
+        document.getElementById('form-start-time').value = firstSlot.startTime;
+        document.getElementById('form-end-time').value = lastSlot.endTime;
+        document.getElementById('form-selected-slots').value = selectedSlots
+            .map(s => `${s.startTime}-${s.endTime}`)
+            .join(',');
 
         document.getElementById('drawer-res-name').textContent = activeResourceName;
-        document.getElementById('drawer-slot-time').textContent = slot.timeLabel;
-        document.getElementById('drawer-price-display').textContent = `₹${slot.priceRupees}`;
+
+        if (selectedSlots.length === 1) {
+            document.getElementById('drawer-slot-time').textContent = firstSlot.timeLabel;
+        } else {
+            const labels = selectedSlots.map(s => s.timeLabel).join(' | ');
+            document.getElementById('drawer-slot-time').textContent = `${selectedSlots.length} Slots: ${labels}`;
+        }
+
+        document.getElementById('drawer-price-display').textContent = `₹${totalRupees}`;
 
         const splitEl = document.getElementById('drawer-per-player-split');
         if (splitEl) {
-            splitEl.textContent = `₹${Math.round(slot.priceRupees / activePlayers)} / player (${activePlayers}p)`;
+            if (activePlayers && activePlayers >= 1) {
+                splitEl.textContent = `₹${Math.round(totalRupees / activePlayers)} / player (${activePlayers}p)`;
+            } else {
+                splitEl.textContent = `${selectedSlots.length} slot${selectedSlots.length > 1 ? 's' : ''} total`;
+            }
         }
 
         if (isClinicVertical) {
             document.getElementById('drawer-peak-badge').textContent = "Consultation Slot";
         } else {
-            document.getElementById('drawer-peak-badge').textContent = slot.isPeak ? "⚡ Floodlight Peak" : "☀️ Day Off-Peak";
+            document.getElementById('drawer-peak-badge').textContent = anyPeak ? "⚡ Floodlight Peak" : "☀️ Day Off-Peak";
         }
 
-        const advanceAmount = Math.round(slot.priceRupees * (tenantAdvancePct / 100));
+        const advanceAmount = Math.round(totalRupees * (tenantAdvancePct / 100));
         const advanceLabel = document.getElementById('advance-amount-label');
         if (advanceLabel) advanceLabel.textContent = `₹${advanceAmount}`;
 
         const fullLabel = document.getElementById('full-amount-label');
-        if (fullLabel) fullLabel.textContent = `₹${slot.priceRupees}`;
+        if (fullLabel) fullLabel.textContent = `₹${totalRupees}`;
 
         const drawer = document.getElementById('checkout-drawer');
         const backdrop = document.getElementById('drawer-backdrop');

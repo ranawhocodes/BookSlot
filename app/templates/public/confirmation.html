@@ -42,8 +42,8 @@
                 </div>
                 <div class="p-3 rounded-2xl bg-[#EBF5EA]">
                     <span class="text-[#4B8338] block text-[10px] uppercase font-bold">Slot Time</span>
-                    <span class="font-extrabold text-[#1D3515] mt-0.5 block">{{ booking.start_time.strftime('%I:%M %p')
-                        }} - {{ booking.end_time.strftime('%I:%M %p') }}</span>
+                    <span class="font-extrabold text-[#1D3515] mt-0.5 block font-mono">{{
+                        booking.start_time.strftime('%H:%M') }} - {{ booking.end_time.strftime('%H:%M') }}</span>
                 </div>
             </div>
 

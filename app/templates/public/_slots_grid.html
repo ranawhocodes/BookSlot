@@ -1,4 +1,4 @@
-<!-- Slot Grid Partial for HTMX Swaps (Warm Turf Pill Design) -->
+<!-- Slot Grid Partial for HTMX Swaps (Warm Turf Pill Design - 24h Format) -->
 {% set is_clinic = (tenant.vertical.value == 'CLINIC') %}
 {% set unit_label = t('per_visit') if is_clinic else t('per_hour') %}
 <div class="space-y-4">
@@ -19,154 +19,198 @@
         <p class="text-sm font-semibold text-stone-400">{{ t('no_slots_date') }}</p>
     </div>
     {% else %}
-    <!-- Morning / Day Slots (Off-Peak) -->
-    {% set off_peak_slots = slots|selectattr('is_peak', 'equalto', False)|selectattr('status', 'ne', 'BREAK')|list %}
-    {% if off_peak_slots %}
-    <div class="space-y-2.5">
-        <div class="flex items-center justify-between px-1">
-            <span class="text-[11px] font-bold uppercase tracking-wider text-stone-400">
-                {{ t('clinic_morning_slots') if is_clinic else t('day_slots_offpeak') }}
-            </span>
-            <span class="text-xs text-stone-500 font-extrabold">₹{{ resource.base_price_paise // 100 }}{{ unit_label
-                }}</span>
-        </div>
 
-        <div class="grid grid-cols-2 gap-2.5">
-            {% for s in off_peak_slots %}
-            {% if s.status == 'AVAILABLE' %}
-            <button type="button" onclick="openCheckoutDrawer({
-                                    startTime: '{{ s.start_time.strftime('%H:%M') }}',
-                                    endTime: '{{ s.end_time.strftime('%H:%M') }}',
-                                    timeLabel: '{{ s.start_time.strftime('%I:%M %p') }} - {{ s.end_time.strftime('%I:%M %p') }}',
-                                    pricePaise: {{ s.price_paise }},
-                                    priceRupees: {{ s.price_paise // 100 }},
-                                    isPeak: false
-                                })"
-                class="slot-pill-available flex items-center justify-between p-3.5 rounded-[18px] border-2 border-transparent bg-white hover:bg-[#EBF5EA] hover:border-[#68A856] active:scale-95 transition-all text-left shadow-sm group">
-                <div class="flex items-center gap-2">
-                    <svg class="w-4 h-4 text-stone-400 group-hover:text-[#4B8338]" fill="none" viewBox="0 0 24 24"
-                        stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"
-                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <div>
-                        <span class="text-xs font-extrabold text-[#181A1D] group-hover:text-[#1D3515] block">
-                            {{ s.start_time.strftime('%I:%M %p') }}
-                        </span>
-                        <span class="text-[10px] font-semibold text-stone-400 group-hover:text-[#39662A]">
-                            {{ t('book_arrow') }}
-                        </span>
+    {# Split slots by time of day (before 17:00 = Day Slots, 17:00 onwards = Evening Floodlight Slots) #}
+    {% set day_slots = [] %}
+    {% set evening_slots = [] %}
+    {% for s in slots if s.status != 'BREAK' %}
+    {% if s.start_time.hour < 17 %} {% set _=day_slots.append(s) %} {% else %} {% set _=evening_slots.append(s) %} {%
+        endif %} {% endfor %} <!-- Morning / Day Slots (06:00 - 17:00) -->
+        {% if day_slots %}
+        <div class="space-y-2.5">
+            <div class="flex items-center justify-between px-1">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-stone-500">
+                    {% if is_clinic %}
+                    {{ t('clinic_morning_slots') }}
+                    {% elif day_slots[0].is_peak %}
+                    ☀️ Weekend Day Slots
+                    {% else %}
+                    {{ t('day_slots_offpeak') }}
+                    {% endif %}
+                </span>
+                <span class="text-xs text-stone-600 font-extrabold">₹{{ day_slots[0].price_paise // 100 }}{{ unit_label
+                    }}</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2.5">
+                {% for s in day_slots %}
+                {% if s.status == 'AVAILABLE' %}
+                <button type="button" onclick="toggleSlotSelection(this)"
+                    data-start-time="{{ s.start_time.strftime('%H:%M') }}"
+                    data-end-time="{{ s.end_time.strftime('%H:%M') }}"
+                    data-start-label="{{ s.start_time.strftime('%H:%M') }}"
+                    data-time-label="{{ s.start_time.strftime('%H:%M') }} - {{ s.end_time.strftime('%H:%M') }}"
+                    data-price-paise="{{ s.price_paise }}" data-price-rupees="{{ s.price_paise // 100 }}"
+                    data-is-peak="false"
+                    class="slot-pill-available flex items-center justify-between p-3.5 rounded-[18px] border-2 border-transparent bg-white hover:bg-[#EBF5EA] hover:border-[#68A856] active:scale-95 transition-all text-left shadow-sm group">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4 text-stone-400 group-hover:text-[#4B8338]" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"
+                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div>
+                            <span class="text-xs font-extrabold text-current font-mono block">
+                                {{ s.start_time.strftime('%H:%M') }} - {{ s.end_time.strftime('%H:%M') }}
+                            </span>
+                            <span class="sr-only">{{ s.start_time.strftime('%I:%M %p') }}</span>
+                            <span
+                                class="slot-action-label text-[10px] font-semibold text-stone-400 group-hover:text-[#39662A]">
+                                {{ t('book_arrow') }}
+                            </span>
+                        </div>
+                    </div>
+                    <span class="px-2 py-1 rounded-xl bg-[#F6F5F0] text-[#181A1D] text-xs font-extrabold">
+                        ₹{{ s.price_paise // 100 }}
+                    </span>
+                </button>
+                {% elif s.status == 'LOCKED' %}
+                <div
+                    class="flex items-center justify-between p-3.5 rounded-[18px] border-2 border-amber-300/60 bg-amber-50/80 text-left opacity-80 cursor-not-allowed">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4 text-amber-600 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                            </circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                        </svg>
+                        <div>
+                            <span class="text-xs font-extrabold text-amber-900 font-mono block">{{
+                                s.start_time.strftime('%H:%M') }} - {{ s.end_time.strftime('%H:%M') }}</span>
+                            <span class="text-[10px] font-bold text-amber-700">{{ t('held_7m') }}</span>
+                        </div>
                     </div>
                 </div>
+                {% elif s.status == 'BLOCKED' %}
+                <div
+                    class="flex flex-col justify-between p-3.5 rounded-[18px] border border-rose-200 bg-rose-50/80 text-left opacity-90 cursor-not-allowed">
+                    <div class="flex items-center justify-between w-full">
+                        <span class="text-xs font-bold text-rose-800 line-through font-mono">
+                            {{ s.start_time.strftime('%H:%M') }} - {{ s.end_time.strftime('%H:%M') }}
+                        </span>
+                        <span
+                            class="px-1.5 py-0.5 rounded bg-rose-200/80 text-[9px] text-rose-900 font-extrabold uppercase">
+                            Blocked
+                        </span>
+                    </div>
+                    <span class="text-[10px] text-rose-700 font-bold mt-1 line-clamp-1"
+                        title="{{ s.block_reason or 'Maintenance Block' }}">
+                        {{ s.block_reason or 'Maintenance Block' }}
+                    </span>
+                </div>
+                {% else %}
+                <div
+                    class="flex items-center justify-between p-3.5 rounded-[18px] bg-stone-200/70 text-left opacity-55 cursor-not-allowed">
+                    <span class="text-xs font-bold text-stone-500 line-through font-mono">
+                        {{ s.start_time.strftime('%H:%M') }} - {{ s.end_time.strftime('%H:%M') }}
+                    </span>
+                    <span class="text-[10px] text-stone-500 font-bold uppercase">{{ t('booked') }}</span>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Evening Floodlight Peak Slots (17:00 - 23:00) -->
+        {% if evening_slots %}
+        <div class="space-y-2.5 pt-2">
+            <div class="flex items-center justify-between px-1">
                 <span
-                    class="px-2 py-1 rounded-xl bg-[#F6F5F0] group-hover:bg-white text-[#181A1D] text-xs font-extrabold">
-                    ₹{{ s.price_paise // 100 }}
-                </span>
-            </button>
-            {% elif s.status == 'LOCKED' %}
-            <div
-                class="flex items-center justify-between p-3.5 rounded-[18px] border-2 border-amber-300/60 bg-amber-50/80 text-left opacity-80 cursor-not-allowed">
-                <div class="flex items-center gap-2">
-                    <svg class="w-4 h-4 text-amber-600 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
-                        </circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                    class="text-[11px] font-extrabold uppercase tracking-wider text-[#39662A] flex items-center gap-1">
+                    <svg class="w-3.5 h-3.5 text-[#5E9E47]" fill="currentColor" viewBox="0 0 20 20">
+                        <path
+                            d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
                     </svg>
-                    <div>
-                        <span class="text-xs font-extrabold text-amber-900 block">{{ s.start_time.strftime('%I:%M %p')
-                            }}</span>
-                        <span class="text-[10px] font-bold text-amber-700">{{ t('held_7m') }}</span>
+                    {{ t('clinic_evening_slots') if is_clinic else t('floodlight_peak') }}
+                </span>
+                <span class="text-xs text-[#39662A] font-extrabold">₹{{ evening_slots[0].price_paise // 100 }}{{
+                    unit_label }}</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2.5">
+                {% for s in evening_slots %}
+                {% if s.status == 'AVAILABLE' %}
+                <button type="button" onclick="toggleSlotSelection(this)"
+                    data-start-time="{{ s.start_time.strftime('%H:%M') }}"
+                    data-end-time="{{ s.end_time.strftime('%H:%M') }}"
+                    data-start-label="{{ s.start_time.strftime('%H:%M') }}"
+                    data-time-label="{{ s.start_time.strftime('%H:%M') }} - {{ s.end_time.strftime('%H:%M') }}"
+                    data-price-paise="{{ s.price_paise }}" data-price-rupees="{{ s.price_paise // 100 }}"
+                    data-is-peak="true"
+                    class="slot-pill-available flex items-center justify-between p-3.5 rounded-[18px] border-2 border-[#68A856]/60 bg-[#EBF5EA] hover:bg-[#D7ECD5] hover:border-[#4B8338] active:scale-95 transition-all text-left shadow-sm group">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4 text-[#4B8338]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"
+                                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div>
+                            <span class="text-xs font-extrabold text-current font-mono block">
+                                {{ s.start_time.strftime('%H:%M') }} - {{ s.end_time.strftime('%H:%M') }}
+                            </span>
+                            <span class="sr-only">{{ s.start_time.strftime('%I:%M %p') }}</span>
+                            <span class="slot-action-label text-[10px] font-bold text-[#4B8338]">
+                                {{ t('book_arrow') }}
+                            </span>
+                        </div>
+                    </div>
+                    <span class="px-2 py-1 rounded-xl bg-white text-[#1D3515] text-xs font-black shadow-sm">
+                        ₹{{ s.price_paise // 100 }}
+                    </span>
+                </button>
+                {% elif s.status == 'LOCKED' %}
+                <div
+                    class="flex items-center justify-between p-3.5 rounded-[18px] border-2 border-amber-300/60 bg-amber-50/80 text-left opacity-80 cursor-not-allowed">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4 text-amber-600 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                            </circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                        </svg>
+                        <div>
+                            <span class="text-xs font-extrabold text-amber-900 font-mono block">{{
+                                s.start_time.strftime('%H:%M') }} - {{ s.end_time.strftime('%H:%M') }}</span>
+                            <span class="text-[10px] font-bold text-amber-700">{{ t('held_7m') }}</span>
+                        </div>
                     </div>
                 </div>
-            </div>
-            {% else %}
-            <div
-                class="flex items-center justify-between p-3.5 rounded-[18px] bg-stone-200/70 text-left opacity-55 cursor-not-allowed">
-                <span class="text-xs font-bold text-stone-500 line-through">
-                    {{ s.start_time.strftime('%I:%M %p') }}
-                </span>
-                <span class="text-[10px] text-stone-500 font-bold uppercase">{{ t('booked') }}</span>
-            </div>
-            {% endif %}
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Evening Floodlight Peak Slots -->
-    {% set peak_slots = slots|selectattr('is_peak', 'equalto', True)|selectattr('status', 'ne', 'BREAK')|list %}
-    {% if peak_slots %}
-    <div class="space-y-2.5 pt-2">
-        <div class="flex items-center justify-between px-1">
-            <span class="text-[11px] font-extrabold uppercase tracking-wider text-[#39662A] flex items-center gap-1">
-                <svg class="w-3.5 h-3.5 text-[#5E9E47]" fill="currentColor" viewBox="0 0 20 20">
-                    <path
-                        d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" />
-                </svg>
-                {{ t('clinic_evening_slots') if is_clinic else t('floodlight_peak') }}
-            </span>
-            <span class="text-xs text-[#39662A] font-extrabold">₹{{ peak_slots[0].price_paise // 100 }}{{ unit_label
-                }}</span>
-        </div>
-
-        <div class="grid grid-cols-2 gap-2.5">
-            {% for s in peak_slots %}
-            {% if s.status == 'AVAILABLE' %}
-            <button type="button" onclick="openCheckoutDrawer({
-                                    startTime: '{{ s.start_time.strftime('%H:%M') }}',
-                                    endTime: '{{ s.end_time.strftime('%H:%M') }}',
-                                    timeLabel: '{{ s.start_time.strftime('%I:%M %p') }} - {{ s.end_time.strftime('%I:%M %p') }}',
-                                    pricePaise: {{ s.price_paise }},
-                                    priceRupees: {{ s.price_paise // 100 }},
-                                    isPeak: true
-                                })"
-                class="slot-pill-available flex items-center justify-between p-3.5 rounded-[18px] border-2 border-[#68A856]/60 bg-[#EBF5EA] hover:bg-[#D7ECD5] hover:border-[#4B8338] active:scale-95 transition-all text-left shadow-sm group">
-                <div class="flex items-center gap-2">
-                    <svg class="w-4 h-4 text-[#4B8338]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2"
-                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <div>
-                        <span class="text-xs font-extrabold text-[#1D3515] block">
-                            {{ s.start_time.strftime('%I:%M %p') }}
+                {% elif s.status == 'BLOCKED' %}
+                <div
+                    class="flex flex-col justify-between p-3.5 rounded-[18px] border border-rose-200 bg-rose-50/80 text-left opacity-90 cursor-not-allowed">
+                    <div class="flex items-center justify-between w-full">
+                        <span class="text-xs font-bold text-rose-800 line-through font-mono">
+                            {{ s.start_time.strftime('%H:%M') }} - {{ s.end_time.strftime('%H:%M') }}
                         </span>
-                        <span class="text-[10px] font-bold text-[#4B8338]">
-                            {{ t('book_arrow') }}
+                        <span
+                            class="px-1.5 py-0.5 rounded bg-rose-200/80 text-[9px] text-rose-900 font-extrabold uppercase">
+                            Blocked
                         </span>
                     </div>
+                    <span class="text-[10px] text-rose-700 font-bold mt-1 line-clamp-1"
+                        title="{{ s.block_reason or 'Maintenance Block' }}">
+                        {{ s.block_reason or 'Maintenance Block' }}
+                    </span>
                 </div>
-                <span class="px-2 py-1 rounded-xl bg-white text-[#1D3515] text-xs font-black shadow-sm">
-                    ₹{{ s.price_paise // 100 }}
-                </span>
-            </button>
-            {% elif s.status == 'LOCKED' %}
-            <div
-                class="flex items-center justify-between p-3.5 rounded-[18px] border-2 border-amber-300/60 bg-amber-50/80 text-left opacity-80 cursor-not-allowed">
-                <div class="flex items-center gap-2">
-                    <svg class="w-4 h-4 text-amber-600 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
-                        </circle>
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-                    </svg>
-                    <div>
-                        <span class="text-xs font-extrabold text-amber-900 block">{{ s.start_time.strftime('%I:%M %p')
-                            }}</span>
-                        <span class="text-[10px] font-bold text-amber-700">{{ t('held_7m') }}</span>
-                    </div>
+                {% else %}
+                <div
+                    class="flex items-center justify-between p-3.5 rounded-[18px] bg-stone-200/70 text-left opacity-55 cursor-not-allowed">
+                    <span class="text-xs font-bold text-stone-500 line-through font-mono">
+                        {{ s.start_time.strftime('%H:%M') }} - {{ s.end_time.strftime('%H:%M') }}
+                    </span>
+                    <span class="text-[10px] text-stone-500 font-bold uppercase">{{ t('booked') }}</span>
                 </div>
+                {% endif %}
+                {% endfor %}
             </div>
-            {% else %}
-            <div
-                class="flex items-center justify-between p-3.5 rounded-[18px] bg-stone-200/70 text-left opacity-55 cursor-not-allowed">
-                <span class="text-xs font-bold text-stone-500 line-through">
-                    {{ s.start_time.strftime('%I:%M %p') }}
-                </span>
-                <span class="text-[10px] text-stone-500 font-bold uppercase">{{ t('booked') }}</span>
-            </div>
-            {% endif %}
-            {% endfor %}
         </div>
-    </div>
-    {% endif %}
-    {% endif %}
+        {% endif %}
+
+        {% endif %}
 </div>

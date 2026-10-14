@@ -59,6 +59,11 @@ def decrypt_gateway_secret(enc_bytes: Optional[bytes]) -> Optional[str]:
         return None
 
 
+# Aliases for cross-module compatibility
+encrypt_secret = encrypt_gateway_secret
+decrypt_secret = decrypt_gateway_secret
+
+
 def build_upi_intent_links(
     vpa: str,
     payee_name: str,

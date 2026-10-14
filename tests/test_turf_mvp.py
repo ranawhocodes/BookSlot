@@ -25,7 +25,7 @@ def test_public_booking_page_renders(app, client, turf_setup):
     assert "Test Pondy Arena" in html
     assert "5v5 Turf A" in html
     assert "Badminton Court 1" in html
-    assert "Pay 30% Advance via UPI" in html
+    assert "Pay 30% Advance To Book" in html
 
 
 def test_htmx_slots_grid_partial(app, client, turf_setup):

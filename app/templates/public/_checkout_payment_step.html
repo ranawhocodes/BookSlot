@@ -15,8 +15,8 @@
                 <h4 class="font-extrabold text-[#181A1D] text-base">{{ resource.name }}</h4>
                 <p class="text-xs text-stone-500 font-medium mt-0.5">{{ booking.slot_date.strftime('%a, %d %b %Y') }}
                 </p>
-                <p class="text-xs text-[#4B8338] font-extrabold mt-0.5">{{ booking.start_time.strftime('%I:%M %p') }} -
-                    {{ booking.end_time.strftime('%I:%M %p') }}</p>
+                <p class="text-xs text-[#4B8338] font-extrabold mt-0.5 font-mono">{{
+                    booking.start_time.strftime('%H:%M') }} - {{ booking.end_time.strftime('%H:%M') }}</p>
             </div>
             <span class="px-3 py-1 bg-[#F6F5F0] text-[#181A1D] text-xs font-bold rounded-full border border-stone-200">
                 {{ customer.name }}

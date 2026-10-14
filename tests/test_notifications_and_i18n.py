@@ -35,7 +35,7 @@ def test_translations_dictionary_keys_match():
 def test_get_text_formatting():
     """Verify get_text formats placeholders properly in both English and Tamil."""
     en_txt = get_text("pay_advance_upi", lang="en", pct=30)
-    assert "Pay 30% Advance via UPI" in en_txt
+    assert "Pay 30% Advance To Book" in en_txt
 
     ta_txt = get_text("pay_advance_upi", lang="ta", pct=30)
     assert "30%" in ta_txt
