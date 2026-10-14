@@ -10,11 +10,16 @@
         <div class="flex items-start justify-between">
             <div>
                 <div class="flex items-center gap-2">
-                    <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
+                    <span
+                        class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
                         {{ tenant.vertical.value }}
                     </span>
                     <span class="text-xs text-slate-400 flex items-center gap-1">
-                        <svg class="w-3.5 h-3.5 text-emerald-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+                        <svg class="w-3.5 h-3.5 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd"
+                                d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"
+                                clip-rule="evenodd" />
+                        </svg>
                         Pondicherry
                     </span>
                 </div>
@@ -24,38 +29,40 @@
 
             <div class="flex items-center gap-2">
                 <!-- English / Tamil Language Toggle -->
-                <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold shadow-inner">
-                    <a
-                        href="?lang=en&resource_id={{ selected_resource.id }}&date={{ selected_date.isoformat() }}"
+                <div
+                    class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold shadow-inner">
+                    <a href="?lang=en&resource_id={{ selected_resource.id }}&date={{ selected_date.isoformat() }}"
                         id="lang-en-toggle"
-                        class="px-2.5 py-1 rounded-lg transition-all {% if lang == 'en' %}bg-emerald-500 text-slate-950 shadow-sm{% else %}text-slate-400 hover:text-white{% endif %}"
-                    >
+                        class="px-2.5 py-1 rounded-lg transition-all {% if lang == 'en' %}bg-emerald-500 text-slate-950 shadow-sm{% else %}text-slate-400 hover:text-white{% endif %}">
                         EN
                     </a>
-                    <a
-                        href="?lang=ta&resource_id={{ selected_resource.id }}&date={{ selected_date.isoformat() }}"
+                    <a href="?lang=ta&resource_id={{ selected_resource.id }}&date={{ selected_date.isoformat() }}"
                         id="lang-ta-toggle"
-                        class="px-2.5 py-1 rounded-lg transition-all {% if lang == 'ta' %}bg-emerald-500 text-slate-950 shadow-sm{% else %}text-slate-400 hover:text-white{% endif %}"
-                    >
+                        class="px-2.5 py-1 rounded-lg transition-all {% if lang == 'ta' %}bg-emerald-500 text-slate-950 shadow-sm{% else %}text-slate-400 hover:text-white{% endif %}">
                         தமிழ்
                     </a>
                 </div>
 
-                <a href="tel:{{ tenant.phone }}" class="p-2.5 rounded-xl bg-slate-800 text-emerald-400 hover:bg-slate-700 active:scale-95 transition-all" aria-label="{{ t('call_venue') }}">
+                <a href="tel:{{ tenant.phone }}"
+                    class="p-2.5 rounded-xl bg-slate-800 text-emerald-400 hover:bg-slate-700 active:scale-95 transition-all"
+                    aria-label="{{ t('call_venue') }}">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                     </svg>
                 </a>
             </div>
         </div>
 
         <!-- Advance policy banner -->
-        <div class="mt-3 px-3 py-1.5 rounded-lg bg-emerald-950/40 border border-emerald-500/20 flex items-center justify-between text-[11px]">
+        <div
+            class="mt-3 px-3 py-1.5 rounded-lg bg-emerald-950/40 border border-emerald-500/20 flex items-center justify-between text-[11px]">
             <span class="text-emerald-300 font-medium flex items-center gap-1.5">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                 {{ t('pay_advance_upi', pct=tenant.advance_percentage) }}
             </span>
-            <span class="text-slate-400">{{ t('pay_rest_venue') }}</span>
+            <span class="text-slate-400">{{ t('pay_rest_venue') if tenant.advance_percentage < 100 else t('online_100')
+                    }}</span>
         </div>
     </header>
 
@@ -64,17 +71,15 @@
 
         <!-- 1. Resource Selector Tabs -->
         <div class="space-y-1.5">
-            <label class="text-xs font-semibold uppercase tracking-wider text-slate-400 px-1">{{ t('court_turf_select') if tenant.vertical.value == 'TURF' else t('doctor_select') }}</label>
+            <label class="text-xs font-semibold uppercase tracking-wider text-slate-400 px-1">{{ t('court_turf_select')
+                if tenant.vertical.value == 'TURF' else t('doctor_select') }}</label>
             <div class="flex gap-2 overflow-x-auto no-scrollbar py-0.5" id="resource-tabs">
                 {% for r in resources %}
-                    <button
-                        type="button"
-                        onclick="selectResource('{{ r.id }}', '{{ r.name }}')"
-                        class="resource-tab px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border flex items-center gap-2 {% if r.id == selected_resource.id %}bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/20 font-bold{% else %}bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800{% endif %}"
-                        data-resource-id="{{ r.id }}"
-                    >
-                        <span>{{ r.name }}</span>
-                    </button>
+                <button type="button" onclick="selectResource('{{ r.id }}', '{{ r.name }}')"
+                    class="resource-tab px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border flex items-center gap-2 {% if r.id == selected_resource.id %}bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/20 font-bold{% else %}bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800{% endif %}"
+                    data-resource-id="{{ r.id }}">
+                    <span>{{ r.name }}</span>
+                </button>
                 {% endfor %}
             </div>
         </div>
@@ -82,38 +87,37 @@
         <!-- 2. Horizontal Date Picker -->
         <div class="space-y-1.5">
             <div class="flex items-center justify-between px-1">
-                <label class="text-xs font-semibold uppercase tracking-wider text-slate-400">{{ t('select_date') }}</label>
-                <span class="text-[11px] text-emerald-400 font-medium" id="selected-date-display">{{ selected_date.strftime('%a, %d %b') }}</span>
+                <label class="text-xs font-semibold uppercase tracking-wider text-slate-400">{{ t('select_date')
+                    }}</label>
+                <span class="text-[11px] text-emerald-400 font-medium" id="selected-date-display">{{
+                    selected_date.strftime('%a, %d %b') }}</span>
             </div>
             <div class="flex gap-2 overflow-x-auto no-scrollbar py-0.5" id="date-scroll-container">
                 {% for d in upcoming_dates %}
-                    <button
-                        type="button"
-                        onclick="selectDate('{{ d.date }}', '{{ d.day_name }}, {{ d.day_number }} {{ d.month_name }}')"
-                        class="date-tab flex-shrink-0 w-16 py-2.5 rounded-xl flex flex-col items-center justify-center border transition-all {% if d.date == selected_date.isoformat() %}bg-slate-100 text-slate-950 border-white font-bold shadow-lg{% else %}bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800/80{% endif %}"
-                        data-date="{{ d.date }}"
-                    >
-                        <span class="text-[10px] uppercase font-semibold {% if d.date == selected_date.isoformat() %}text-emerald-700{% else %}text-slate-400{% endif %}">
-                            {{ d.sub_label }}
-                        </span>
-                        <span class="text-base font-extrabold mt-0.5 leading-tight">
-                            {{ d.day_number }}
-                        </span>
-                        <span class="text-[9px] uppercase tracking-wider text-slate-400">
-                            {{ d.month_name }}
-                        </span>
-                    </button>
+                <button type="button"
+                    onclick="selectDate('{{ d.date }}', '{{ d.day_name }}, {{ d.day_number }} {{ d.month_name }}')"
+                    class="date-tab flex-shrink-0 w-16 py-2.5 rounded-xl flex flex-col items-center justify-center border transition-all {% if d.date == selected_date.isoformat() %}bg-slate-100 text-slate-950 border-white font-bold shadow-lg{% else %}bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800/80{% endif %}"
+                    data-date="{{ d.date }}">
+                    <span
+                        class="text-[10px] uppercase font-semibold {% if d.date == selected_date.isoformat() %}text-emerald-700{% else %}text-slate-400{% endif %}">
+                        {{ d.sub_label }}
+                    </span>
+                    <span class="text-base font-extrabold mt-0.5 leading-tight">
+                        {{ d.day_number }}
+                    </span>
+                    <span class="text-[9px] uppercase tracking-wider text-slate-400">
+                        {{ d.month_name }}
+                    </span>
+                </button>
                 {% endfor %}
             </div>
         </div>
 
         <!-- 3. Dynamic Slot Grid (HTMX Swapped) -->
         <div id="slots-container" class="space-y-3">
-            <div
-                id="slots-grid"
+            <div id="slots-grid"
                 hx-get="/b/{{ tenant.slug }}/slots?resource_id={{ selected_resource.id }}&date={{ selected_date.isoformat() }}"
-                hx-trigger="refreshSlots from:body"
-            >
+                hx-trigger="refreshSlots from:body">
                 {% include "public/_slots_grid.html" %}
             </div>
         </div>
@@ -126,13 +130,13 @@
     <input type="hidden" id="current-date" value="{{ selected_date.isoformat() }}">
 
     <!-- 4. Checkout Drawer / Bottom Sheet -->
-    <div id="drawer-backdrop" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-40 hidden transition-opacity opacity-0" onclick="closeCheckoutDrawer()"></div>
-
-    <div
-        id="checkout-drawer"
-        class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-slate-900 border-t border-slate-800 rounded-t-3xl p-5 z-50 transform translate-y-full transition-transform duration-300 ease-out safe-bottom"
-    >
-        <div class="w-12 h-1.5 bg-slate-700 rounded-full mx-auto mb-4 cursor-pointer" onclick="closeCheckoutDrawer()"></div>
+    <div id="drawer-backdrop"
+        class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-40 hidden transition-opacity opacity-0"
+        onclick="closeCheckoutDrawer()"></div>
+    <div id="checkout-drawer"
+        class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-slate-900 border-t border-slate-800 rounded-t-3xl p-5 z-50 transform translate-y-full transition-transform duration-300 ease-out safe-bottom max-h-[92vh] overflow-y-auto">
+        <div class="w-12 h-1.5 bg-slate-700 rounded-full mx-auto mb-4 cursor-pointer" onclick="closeCheckoutDrawer()">
+        </div>
 
         <div id="drawer-content">
             <!-- Step 1: Slot Review & Customer Contact -->
@@ -143,105 +147,107 @@
                 <input type="hidden" name="end_time" id="form-end-time">
                 <input type="hidden" name="lang" value="{{ lang }}">
 
+                <!-- Anti-Bot Invisible Honeypot -->
+                <div class="hidden" aria-hidden="true">
+                    <input type="text" name="website_url" tabindex="-1" autocomplete="off">
+                </div>
+
                 <!-- Drawer Header -->
                 <div class="flex items-start justify-between border-b border-slate-800 pb-3">
                     <div>
-                        <h3 class="text-base font-bold text-slate-100" id="drawer-res-name">5v5 Football Turf</h3>
-                        <p class="text-xs text-emerald-400 font-medium mt-0.5" id="drawer-slot-time">06:00 PM - 07:00 PM</p>
+                        <h3 class="text-base font-bold text-slate-100" id="drawer-res-name">{{ selected_resource.name }}
+                        </h3>
+                        <p class="text-xs text-emerald-400 font-medium mt-0.5" id="drawer-slot-time">06:00 PM - 07:00 PM
+                        </p>
                     </div>
                     <div class="text-right">
                         <span class="text-lg font-black text-slate-100" id="drawer-price-display">₹1,200</span>
-                        <span class="block text-[10px] text-slate-400" id="drawer-peak-badge">Floodlight Peak</span>
+                        <span class="block text-[10px] text-slate-400" id="drawer-peak-badge">Standard Rate</span>
                     </div>
                 </div>
 
                 <!-- Payment Choice (Advance vs Full) -->
-                {% if tenant.advance_percentage < 100 %}
-                    <div class="grid grid-cols-2 gap-2 text-left">
-                        <label class="p-3 rounded-xl border border-emerald-500/40 bg-emerald-950/20 cursor-pointer flex flex-col justify-between">
-                            <div class="flex items-center gap-2">
-                                <input type="radio" name="payment_choice" value="advance" checked class="text-emerald-500 focus:ring-0">
-                                <span class="text-xs font-semibold text-emerald-300">{{ t('advance_pct', pct=tenant.advance_percentage) }}</span>
-                            </div>
-                            <span class="text-sm font-bold text-slate-100 mt-1" id="advance-amount-label">₹360</span>
-                            <span class="text-[10px] text-slate-400">{{ t('balance_venue') }}</span>
-                        </label>
-                        <label class="p-3 rounded-xl border border-slate-800 bg-slate-900/60 cursor-pointer flex flex-col justify-between">
-                            <div class="flex items-center gap-2">
-                                <input type="radio" name="payment_choice" value="full" class="text-emerald-500 focus:ring-0">
-                                <span class="text-xs font-semibold text-slate-300">{{ t('pay_full') }}</span>
-                            </div>
-                            <span class="text-sm font-bold text-slate-100 mt-1" id="full-amount-label">₹1,200</span>
-                            <span class="text-[10px] text-slate-400">{{ t('online_100') }}</span>
-                        </label>
-                    </div>
-                {% else %}
-                    <input type="hidden" name="payment_choice" value="full">
-                {% endif %}
-
-                <!-- Customer Details -->
-                <div class="space-y-3">
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-400 mb-1" for="customer-name">{{ t('full_name') }}</label>
-                        <input
-                            type="text"
-                            name="name"
-                            id="customer-name"
-                            required
-                            placeholder="e.g. Ramesh Kumar"
-                            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                        >
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold text-slate-400 mb-1" for="customer-phone">{{ t('mobile_number') }}</label>
-                        <div class="flex items-center rounded-xl bg-slate-950 border border-slate-800 focus-within:border-emerald-500">
-                            <span class="pl-3.5 pr-2 text-sm text-slate-500 font-medium">+91</span>
-                            <input
-                                type="tel"
-                                name="phone"
-                                id="customer-phone"
-                                required
-                                maxlength="10"
-                                placeholder="9876543210"
-                                class="w-full pr-3.5 py-2.5 bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none"
-                            >
+                {% if tenant.advance_percentage < 100 %} <div class="grid grid-cols-2 gap-2 text-left">
+                    <label
+                        class="p-3 rounded-xl border border-emerald-500/40 bg-emerald-950/20 cursor-pointer flex flex-col justify-between">
+                        <div class="flex items-center gap-2">
+                            <input type="radio" name="payment_choice" value="advance" checked
+                                class="text-emerald-500 focus:ring-0">
+                            <span class="text-xs font-semibold text-emerald-300">{{ t('advance_pct',
+                                pct=tenant.advance_percentage) }}</span>
                         </div>
-                    </div>
-                </div>
-
-                <!-- DPDP Act Consent Checkbox -->
-                <div class="pt-1">
-                    <label class="flex items-start gap-2.5 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            name="dpdp_consent"
-                            id="dpdp-consent"
-                            value="on"
-                            checked
-                            required
-                            class="mt-0.5 rounded bg-slate-950 border-slate-700 text-emerald-500 focus:ring-0"
-                        >
-                        <span class="text-[11px] text-slate-400 leading-snug">
-                            {{ t('dpdp_consent_label') }}
-                        </span>
+                        <span class="text-sm font-bold text-slate-100 mt-1" id="advance-amount-label">₹360</span>
+                        <span class="text-[10px] text-slate-400">{{ t('balance_venue') }}</span>
                     </label>
-                </div>
-
-                <!-- Action Button -->
-                <button
-                    type="submit"
-                    class="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95 transition-all text-sm flex items-center justify-center gap-2"
-                >
-                    <span>{{ t('hold_and_pay') }}</span>
-                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
-                    </svg>
-                </button>
-            </form>
+                    <label
+                        class="p-3 rounded-xl border border-slate-800 bg-slate-900/60 cursor-pointer flex flex-col justify-between">
+                        <div class="flex items-center gap-2">
+                            <input type="radio" name="payment_choice" value="full"
+                                class="text-emerald-500 focus:ring-0">
+                            <span class="text-xs font-semibold text-slate-300">{{ t('pay_full') }}</span>
+                        </div>
+                        <span class="text-sm font-bold text-slate-100 mt-1" id="full-amount-label">₹1,200</span>
+                        <span class="text-[10px] text-slate-400">{{ t('online_100') }}</span>
+                    </label>
         </div>
+        {% else %}
+        <input type="hidden" name="payment_choice" value="full">
+        {% endif %}
+
+        <!-- Customer Details with Strict Regex Validation -->
+        <div class="space-y-3">
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1" for="customer-name">{{ t('full_name')
+                    }}</label>
+                <input type="text" name="name" id="customer-name" required minlength="2" maxlength="60"
+                    pattern="[A-Za-z][A-Za-z\s\.\'\-]{1,59}"
+                    title="Enter a valid full name (letters and spaces only, 2 to 60 characters)"
+                    placeholder="e.g. Ramesh Kumar"
+                    class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 mb-1" for="customer-phone">{{
+                    t('mobile_number') }}</label>
+                <div
+                    class="flex items-center rounded-xl bg-slate-950 border border-slate-800 focus-within:border-emerald-500">
+                    <span class="pl-3.5 pr-2 text-sm text-slate-500 font-medium">+91</span>
+                    <input type="tel" name="phone" id="customer-phone" required minlength="10" maxlength="10"
+                        pattern="[6-9][0-9]{9}" inputmode="numeric"
+                        oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10)"
+                        title="Enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9"
+                        placeholder="9876543210"
+                        class="w-full pr-3.5 py-2.5 bg-transparent text-sm text-slate-100 placeholder-slate-500 focus:outline-none">
+                </div>
+            </div>
+        </div>
+
+        <!-- DPDP Act Consent Checkbox -->
+        <div class="pt-1">
+            <label class="flex items-start gap-2.5 cursor-pointer">
+                <input type="checkbox" name="dpdp_consent" id="dpdp-consent" value="on" checked required
+                    class="mt-0.5 rounded bg-slate-950 border-slate-700 text-emerald-500 focus:ring-0">
+                <span class="text-[11px] text-slate-400 leading-snug">
+                    {{ t('dpdp_consent_label') }}
+                </span>
+            </label>
+        </div>
+
+        <!-- Action Button -->
+        <button type="submit"
+            class="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95 transition-all text-sm flex items-center justify-center gap-2">
+            <span>{{ t('hold_and_pay') }}</span>
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+        </button>
+        </form>
     </div>
+</div>
 
 </div>
+
+<!-- Razorpay Standard Checkout SDK -->
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
 <!-- Client-Side State Scripts -->
 <script>
@@ -249,6 +255,7 @@
     let activeResourceName = document.getElementById('current-resource-name').value;
     let activeDate = document.getElementById('current-date').value;
     const tenantAdvancePct = {{ tenant.advance_percentage }};
+    const isClinicVertical = "{{ tenant.vertical.value }}" === "CLINIC";
 
     function selectResource(resId, resName) {
         activeResourceId = resId;
@@ -256,7 +263,6 @@
         document.getElementById('current-resource-id').value = resId;
         document.getElementById('current-resource-name').value = resName;
 
-        // Update tab styles
         document.querySelectorAll('.resource-tab').forEach(tab => {
             if (tab.dataset.resourceId === resId) {
                 tab.className = "resource-tab px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border flex items-center gap-2 bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/20";
@@ -273,7 +279,6 @@
         document.getElementById('current-date').value = dateVal;
         document.getElementById('selected-date-display').textContent = displayStr;
 
-        // Update date tab styles
         document.querySelectorAll('.date-tab').forEach(tab => {
             if (tab.dataset.date === dateVal) {
                 tab.className = "date-tab flex-shrink-0 w-16 py-2.5 rounded-xl flex flex-col items-center justify-center border transition-all bg-slate-100 text-slate-950 border-white font-bold shadow-lg";
@@ -299,28 +304,29 @@
         document.getElementById('drawer-res-name').textContent = activeResourceName;
         document.getElementById('drawer-slot-time').textContent = slot.timeLabel;
         document.getElementById('drawer-price-display').textContent = `₹${slot.priceRupees}`;
-        document.getElementById('drawer-peak-badge').textContent = slot.isPeak ? "⚡ Floodlight Peak Rate" : "Standard Day Rate";
+        if (isClinicVertical) {
+            document.getElementById('drawer-peak-badge').textContent = "Consultation Fee";
+        } else {
+            document.getElementById('drawer-peak-badge').textContent = slot.isPeak ? "⚡ Floodlight Peak Rate" : "Standard Day Rate";
+        }
 
-        // Calculate advance preview
         const advanceAmount = Math.round(slot.priceRupees * (tenantAdvancePct / 100));
         const advanceLabel = document.getElementById('advance-amount-label');
         if (advanceLabel) advanceLabel.textContent = `₹${advanceAmount}`;
+
         const fullLabel = document.getElementById('full-amount-label');
         if (fullLabel) fullLabel.textContent = `₹${slot.priceRupees}`;
 
         const drawer = document.getElementById('checkout-drawer');
         const backdrop = document.getElementById('drawer-backdrop');
-
         backdrop.classList.remove('hidden');
         setTimeout(() => backdrop.classList.remove('opacity-0'), 10);
-
         drawer.classList.remove('translate-y-full');
     }
 
     function closeCheckoutDrawer() {
         const drawer = document.getElementById('checkout-drawer');
         const backdrop = document.getElementById('drawer-backdrop');
-
         drawer.classList.add('translate-y-full');
         backdrop.classList.add('opacity-0');
         setTimeout(() => backdrop.classList.add('hidden'), 300);

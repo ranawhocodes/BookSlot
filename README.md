@@ -97,16 +97,22 @@ slotengine/
 │   │   ├── tenant.py        # Multi-tenant slug & session resolver
 │   │   └── auth.py          # RBAC decorators & audit logging
 │   ├── services/
-│   │   ├── slot_engine.py   # Slot availability & atomic 7-minute holds
-│   │   ├── pricing.py       # Peak/off-peak & advance price calculator
-│   │   ├── payment_gw.py    # Razorpay orders, HMAC webhook verification
-│   │   └── notifier.py      # Meta WhatsApp Cloud API / AiSensy + SMS fallback
+│   │   ├── slot_engine.py       # Slot availability & atomic 7-minute holds
+│   │   ├── pricing.py           # Peak/off-peak & advance price calculator
+│   │   ├── payment_gw.py        # UPI deep links, QR codes, Razorpay & Fernet encryption
+│   │   ├── notifier.py          # Meta WhatsApp Cloud API / AiSensy + SMS fallback
+│   │   └── background_runner.py # Threaded scheduler for automated reminders & hold cleanup
+│   ├── utils/
+│   │   └── validators.py        # Strict Indian phone regex, honeypot & IP rate limiter
 │   ├── blueprints/
-│   │   ├── public/          # /b/<slug> customer booking & HTMX partials
-│   │   ├── dashboard/       # Owner & Turf management dashboard
-│   │   ├── clinic/          # Queue board, EMR patient records, invoices
-│   │   └── webhooks/        # Razorpay & WhatsApp webhooks
-│   └── templates/           # Jinja2 templates for public, turf, and clinic
-├── docs/                    # PRD & TRD documentation
-└── tests/                   # 38 pytest test cases
+│   │   ├── public/              # /b/<slug> customer booking & HTMX partials
+│   │   ├── dashboard/           # Owner turf/clinic dashboard & 60s onboarding wizard
+│   │   ├── clinic/              # Queue board, EMR patient records, invoices
+│   │   └── webhooks/            # Razorpay & WhatsApp webhooks
+│   └── templates/               # Jinja2 templates for public, turf, and clinic
+├── docs/                        # PRD, TRD, and Client Onboarding Roadmap (.docx)
+├── scripts/                     # Word document & asset generators
+├── tests/                       # 38 pytest test cases (100% green)
+├── render.yaml                  # Production PaaS blueprint for Render + PostgreSQL
+└── requirements.txt
 ```

@@ -1,7 +1,8 @@
+# app/cli.py
 import click
 import uuid
 from datetime import time
-from flask import Flask
+from flask import Flask, current_app
 from sqlalchemy import select
 from app.extensions import db
 from app.models import (
@@ -27,6 +28,7 @@ def register_commands(app: Flask) -> None:
     def send_reminders_command() -> None:
         """Scan upcoming bookings (24h/2h) and clinic follow-ups and send reminders idempotently."""
         from app.services.notifier import send_reminders
+
         click.echo("Scanning upcoming appointments and clinic follow-up schedules...")
         res = send_reminders()
         click.echo(
@@ -37,10 +39,48 @@ def register_commands(app: Flask) -> None:
             f"Quota Exceeded={res['quota_exceeded_count']}"
         )
 
+    @app.cli.command("expire-holds")
+    def expire_holds_command() -> None:
+        """Release abandoned 7-minute payment holds that have passed their locked_until timestamp."""
+        from app.services.slot_engine import expire_stale_holds
+
+        count = expire_stale_holds()
+        click.echo(f"Expired stale holds cleaned: {count}")
+
+    @app.cli.command("maintenance-tick")
+    def maintenance_tick_command() -> None:
+        """Run one pass of stale hold cleanup + automated WhatsApp reminders (ideal for system cron)."""
+        from app.services.background_runner import run_maintenance_cycle
+
+        stats = run_maintenance_cycle(current_app._get_current_object())
+        click.echo(
+            f"Maintenance tick complete: "
+            f"Expired Holds={stats['expired_holds_cleaned']}, "
+            f"24h={stats['reminders_24h_sent']}, "
+            f"2h={stats['reminders_2h_sent']}, "
+            f"Follow-ups={stats['followups_sent']}"
+        )
+
+    @app.cli.command("run-worker")
+    @click.option("--interval", default=300, help="Interval in seconds between maintenance cycles (default 300s).")
+    def run_worker_command(interval: int) -> None:
+        """Run continuous background worker loop for reminders and stale hold cleanup."""
+        import time as time_mod
+        from app.services.background_runner import run_maintenance_cycle
+
+        app_obj = current_app._get_current_object()
+        click.echo(f"Starting SlotEngine background worker (interval={interval}s)...")
+        while True:
+            try:
+                stats = run_maintenance_cycle(app_obj)
+                click.echo(f"[Worker Tick] {stats}")
+            except Exception as exc:
+                click.echo(f"[Worker Error] {exc}", err=True)
+            time_mod.sleep(interval)
+
 
 def seed_demo_data(reset: bool = False) -> None:
     """Idempotently seeds demo tenants, resources, pricing rules, and users."""
-    # Ensure tables exist
     db.create_all()
 
     # 1. TURF TENANT
@@ -67,13 +107,12 @@ def seed_demo_data(reset: bool = False) -> None:
             timezone="Asia/Kolkata",
             currency="INR",
             payment_mode_config="VENUE_ONLY",
-            advance_percentage=30,  # 30% advance via UPI
+            advance_percentage=30,
             monthly_msg_quota=500,
         )
         db.session.add(turf_tenant)
         db.session.flush()
 
-        # Turf Owner User
         turf_owner = User(
             id=uuid.uuid4(),
             tenant_id=turf_tenant.id,
@@ -85,14 +124,13 @@ def seed_demo_data(reset: bool = False) -> None:
         turf_owner.set_password("password123")
         db.session.add(turf_owner)
 
-        # Resources: 5v5 Turf + 2 Badminton Courts
         turf_football = Resource(
             id=uuid.uuid4(),
             tenant_id=turf_tenant.id,
             name="5v5 Football Turf",
             category="Football",
             slot_duration_mins=60,
-            base_price_paise=80000,  # ₹800/hr off-peak
+            base_price_paise=80000,
         )
         badminton_1 = Resource(
             id=uuid.uuid4(),
@@ -100,7 +138,7 @@ def seed_demo_data(reset: bool = False) -> None:
             name="Badminton Court 1",
             category="Badminton",
             slot_duration_mins=60,
-            base_price_paise=40000,  # ₹400/hr off-peak
+            base_price_paise=40000,
         )
         badminton_2 = Resource(
             id=uuid.uuid4(),
@@ -108,14 +146,11 @@ def seed_demo_data(reset: bool = False) -> None:
             name="Badminton Court 2",
             category="Badminton",
             slot_duration_mins=60,
-            base_price_paise=40000,  # ₹400/hr off-peak
+            base_price_paise=40000,
         )
         db.session.add_all([turf_football, badminton_1, badminton_2])
         db.session.flush()
 
-        # Pricing rules for Football Turf:
-        # Weekdays (0-4): 06:00-17:00 Base (₹800), 17:00-23:00 Peak Floodlight (₹1,200)
-        # Weekends (5-6): 06:00-23:00 Weekend Peak (₹1,400)
         turf_resources = [
             (turf_football, 80000, 120000, 140000),
             (badminton_1, 40000, 60000, 70000),
@@ -123,9 +158,7 @@ def seed_demo_data(reset: bool = False) -> None:
         ]
 
         for res, base_p, peak_p, weekend_p in turf_resources:
-            # Weekdays (Mon-Fri: 0..4)
             for day in range(0, 5):
-                # Off-peak rule
                 db.session.add(
                     AvailabilityRule(
                         id=uuid.uuid4(),
@@ -138,7 +171,6 @@ def seed_demo_data(reset: bool = False) -> None:
                         price_override_paise=base_p,
                     )
                 )
-                # Peak Floodlight rule
                 db.session.add(
                     AvailabilityRule(
                         id=uuid.uuid4(),
@@ -151,7 +183,6 @@ def seed_demo_data(reset: bool = False) -> None:
                         price_override_paise=peak_p,
                     )
                 )
-            # Weekends (Sat-Sun: 5..6)
             for day in range(5, 7):
                 db.session.add(
                     AvailabilityRule(
@@ -201,7 +232,6 @@ def seed_demo_data(reset: bool = False) -> None:
         db.session.add(clinic_tenant)
         db.session.flush()
 
-        # Clinic Users: Doctor Owner + Receptionist
         clinic_owner = User(
             id=uuid.uuid4(),
             tenant_id=clinic_tenant.id,
@@ -221,37 +251,30 @@ def seed_demo_data(reset: bool = False) -> None:
             role=UserRole.RECEPTIONIST,
         )
         receptionist.set_password("password123")
-
         db.session.add_all([clinic_owner, receptionist])
         db.session.flush()
 
-        # Resources: 2 Doctors
         doc_dental = Resource(
             id=uuid.uuid4(),
             tenant_id=clinic_tenant.id,
             name="Dr. S. Ramanathan (BDS)",
             category="Dental Consultation",
-            slot_duration_mins=20,  # 20-min dental consultation slots
-            base_price_paise=30000,  # ₹300 consultation fee
+            slot_duration_mins=20,
+            base_price_paise=30000,
         )
         doc_ayurveda = Resource(
             id=uuid.uuid4(),
             tenant_id=clinic_tenant.id,
             name="Dr. Lakshmi Priya (BAMS)",
             category="Ayurvedic Consultation & Panchakarma",
-            slot_duration_mins=30,  # 30-min ayurveda consultation slots
-            base_price_paise=40000,  # ₹400 consultation fee
+            slot_duration_mins=30,
+            base_price_paise=40000,
         )
         db.session.add_all([doc_dental, doc_ayurveda])
         db.session.flush()
 
-        # Operating schedule: Mon - Sat (0..5), Sunday closed
-        # Morning: 09:00 - 13:30 (operating)
-        # Break: 13:30 - 16:30 (is_break=True)
-        # Evening: 16:30 - 20:30 (operating)
         for doc in (doc_dental, doc_ayurveda):
             for day in range(0, 6):
-                # Morning session
                 db.session.add(
                     AvailabilityRule(
                         id=uuid.uuid4(),
@@ -264,7 +287,6 @@ def seed_demo_data(reset: bool = False) -> None:
                         price_override_paise=None,
                     )
                 )
-                # Afternoon break
                 db.session.add(
                     AvailabilityRule(
                         id=uuid.uuid4(),
@@ -277,7 +299,6 @@ def seed_demo_data(reset: bool = False) -> None:
                         price_override_paise=None,
                     )
                 )
-                # Evening session
                 db.session.add(
                     AvailabilityRule(
                         id=uuid.uuid4(),

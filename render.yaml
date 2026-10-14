@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: slotengine-saas
+    runtime: python
+    region: singapore
+    plan: starter
+    buildCommand: "pip install -r requirements.txt && flask db upgrade && flask seed-demo"
+    startCommand: "gunicorn wsgi:app --workers 3 --bind 0.0.0.0:$PORT --timeout 60"
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: ENABLE_BACKGROUND_SCHEDULER
+        value: "true"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: APP_MASTER_KEY
+        value: "c2xvdGVuZ2luZS1tYXN0ZXIta2V5LTMyYnl0ZXM="
+      - key: DATABASE_URL
+        fromDatabase:
+          name: slotengine-postgres
+          property: connectionString
+
+databases:
+  - name: slotengine-postgres
+    plan: basic-256mb
+    region: singapore
+    postgresMajorVersion: "16"

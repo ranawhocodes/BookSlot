@@ -1,3 +1,4 @@
+# app/translations.py
 from typing import Dict, Any
 
 TRANSLATIONS: Dict[str, Dict[str, str]] = {
@@ -11,6 +12,10 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "duration": "duration",
         "day_slots_offpeak": "Day Slots (Off-Peak)",
         "floodlight_peak": "Evening Floodlight Peak Slots",
+        "clinic_morning_slots": "Morning Consultation Slots",
+        "clinic_evening_slots": "Evening Consultation Slots",
+        "per_hour": "/hr",
+        "per_visit": "/visit",
         "book_arrow": "Book →",
         "held_7m": "Held (7m)",
         "booked": "Booked",
@@ -41,6 +46,10 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "duration": "நேர அளவு",
         "day_slots_offpeak": "பகல் நேரங்கள் (சாதாரண கட்டணம்)",
         "floodlight_peak": "மின்விளக்கு இரவு நேரங்கள் (பீக் ஹவர்ஸ்)",
+        "clinic_morning_slots": "காலை மருத்துவ ஆலோசனை நேரங்கள்",
+        "clinic_evening_slots": "மாலை மருத்துவ ஆலோசனை நேரங்கள்",
+        "per_hour": "/மணி",
+        "per_visit": "/வருகை",
         "book_arrow": "முன்பதிவு →",
         "held_7m": "முன்பதிவு பூட்டப்பட்டுள்ளது (7 நிமி)",
         "booked": "முன்பதிவு செய்யப்பட்டது",
@@ -60,7 +69,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "no_slots_date": "இந்த தேதியில் முன்பதிவு நேரங்கள் இல்லை.",
         "slots_heading": "கிடைக்கும் முன்பதிவு நேரங்கள்",
         "call_venue": "தொடர்பு கொள்ள",
-    }
+    },
 }
 
 TAMIL_DAYS = {
@@ -76,7 +85,7 @@ TAMIL_DAYS = {
 TAMIL_MONTHS = {
     "Jan": "ஜன",
     "Feb": "பிப்",
-    "Mar": "மார்ச்",
+    "Mar": "மார்",
     "Apr": "ஏப்",
     "May": "மே",
     "Jun": "ஜூன்",

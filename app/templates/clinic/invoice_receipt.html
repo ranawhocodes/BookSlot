@@ -24,17 +24,26 @@
 <body class="min-h-full flex flex-col items-center justify-center p-4 md:p-8 bg-slate-900">
 
     <!-- Top Action Bar -->
-    <div class="no-print w-full max-w-lg mb-4 flex items-center justify-between text-white">
+    <div class="no-print w-full max-w-lg mb-4 flex items-center justify-between text-white gap-2">
         <a href="/dashboard/clinic/invoices?slug={{ tenant.slug }}" class="text-xs text-slate-300 hover:text-white flex items-center gap-1">
             &larr; Back to Invoices
         </a>
-        <button
-            onclick="window.print()"
-            class="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
-        >
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-            Print Receipt (A4/A5)
-        </button>
+        <div class="flex items-center gap-2">
+            {% if wa_share_url %}
+            <a href="{{ wa_share_url }}" target="_blank"
+                class="px-3.5 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-lg active:scale-95 transition-all">
+                <span>Share on WhatsApp</span>
+            </a>
+            {% endif %}
+            <button onclick="window.print()"
+                class="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all">
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Print Receipt (A4/A5)
+            </button>
+        </div>
     </div>
 
     <!-- Printable Receipt Card -->

@@ -1,11 +1,16 @@
+# app/blueprints/dashboard/routes.py
+import re
 import uuid
 from datetime import date, datetime, time, timezone
-from flask import Blueprint, render_template, request, redirect, url_for, flash, abort
-from sqlalchemy import select, func, and_
+from flask import Blueprint, render_template, request, redirect, url_for, flash, abort, session
+from sqlalchemy import select
 from app.extensions import db
 from app.models import (
     Tenant,
+    VerticalType,
+    User,
     Resource,
+    AvailabilityRule,
     Booking,
     BookingStatus,
     Customer,
@@ -18,6 +23,8 @@ from app.middleware.auth import require_role
 from app.services.slot_engine import get_available_slots
 from app.services.pricing import calculate_booking_quote
 from app.services.qr_generator import generate_qr_code_data_uri
+from app.services.payment_gw import encrypt_gateway_secret
+from app.utils.validators import sanitize_and_validate_name, sanitize_and_validate_phone
 
 dashboard_bp = Blueprint("dashboard", __name__, url_prefix="/dashboard")
 
@@ -30,14 +37,12 @@ def turf_dashboard():
     if not tenant:
         abort(404, description="No active tenant found.")
 
-    # Date selector
     date_str = request.args.get("date")
     try:
         selected_date = date.fromisoformat(date_str) if date_str else date.today()
     except ValueError:
         selected_date = date.today()
 
-    # Active resources
     resources = db.session.execute(
         select(Resource).filter(
             Resource.tenant_id == tenant.id,
@@ -45,7 +50,6 @@ def turf_dashboard():
         )
     ).scalars().all()
 
-    # Today's bookings
     bookings = db.session.execute(
         select(Booking).filter(
             Booking.tenant_id == tenant.id,
@@ -53,7 +57,6 @@ def turf_dashboard():
         ).order_by(Booking.start_time.asc())
     ).scalars().all()
 
-    # Metric calculations
     confirmed_bookings = [
         b for b in bookings
         if b.status in (BookingStatus.CONFIRMED, BookingStatus.COMPLETED)
@@ -68,7 +71,6 @@ def turf_dashboard():
 
     total_confirmed_count = len(confirmed_bookings)
 
-    # Cash vs Online UPI payments for selected date
     payments_today = db.session.execute(
         select(Payment).join(Booking, Payment.booking_id == Booking.id).filter(
             Payment.tenant_id == tenant.id,
@@ -87,7 +89,6 @@ def turf_dashboard():
     total_booked_value_paise = sum(b.total_amount_paise for b in confirmed_bookings)
     pending_venue_balance_paise = max(0, total_booked_value_paise - total_collected_paise)
 
-    # Occupancy calculation across all active resources
     total_capacity_slots = 0
     for res in resources:
         try:
@@ -123,10 +124,7 @@ def turf_dashboard():
 @dashboard_bp.route("/manual-booking", methods=["POST"])
 @require_role(UserRole.OWNER, UserRole.STAFF)
 def create_manual_booking():
-    """
-    2-tap modal on the owner's mobile dashboard to record phone callers/walk-ins.
-    E.g. Ramesh - 9876543210 - Cash/UPI Direct - ₹200 Advance Paid, ₹800 Pending.
-    """
+    """2-tap modal on the owner's mobile dashboard to record phone callers/walk-ins."""
     tenant = resolve_current_tenant()
     if not tenant:
         abort(404)
@@ -135,8 +133,13 @@ def create_manual_booking():
     slot_date_str = request.form.get("slot_date")
     start_time_str = request.form.get("start_time")
     end_time_str = request.form.get("end_time")
-    name = (request.form.get("name") or "").strip()
-    phone = (request.form.get("phone") or "").strip().replace(" ", "").replace("-", "")
+
+    name, name_err = sanitize_and_validate_name(request.form.get("name"))
+    phone, phone_err = sanitize_and_validate_phone(request.form.get("phone"))
+    if name_err or phone_err:
+        flash(name_err or phone_err, "error")
+        return redirect(url_for("dashboard.turf_dashboard", slug=tenant.slug))
+
     mode_str = request.form.get("payment_mode", "CASH")
     advance_paise_str = request.form.get("advance_paid_paise", "0")
     booking_notes = request.form.get("booking_notes")
@@ -155,18 +158,15 @@ def create_manual_booking():
     resource = db.session.execute(
         select(Resource).filter_by(tenant_id=tenant.id, id=resource_id)
     ).scalar_one_or_none()
-
     if not resource:
         flash("Resource not found.", "error")
         return redirect(url_for("dashboard.turf_dashboard", slug=tenant.slug))
 
-    # 1. Upsert Customer
     customer = db.session.execute(
         select(Customer).filter_by(tenant_id=tenant.id, phone=phone)
     ).scalar_one_or_none()
 
     now_utc = datetime.now(timezone.utc)
-
     if customer:
         customer.name = name
     else:
@@ -181,7 +181,6 @@ def create_manual_booking():
         db.session.add(customer)
     db.session.flush()
 
-    # 2. Quote Calculation
     quote = calculate_booking_quote(
         resource=resource,
         slot_date=slot_date,
@@ -189,7 +188,6 @@ def create_manual_booking():
         tenant=tenant,
     )
 
-    # 3. Create Confirmed Booking (Walk-In / Manual)
     booking = Booking(
         id=uuid.uuid4(),
         tenant_id=tenant.id,
@@ -208,7 +206,6 @@ def create_manual_booking():
     db.session.add(booking)
     db.session.flush()
 
-    # 4. Record Payment if advance was collected
     if advance_paid_paise > 0:
         payment = Payment(
             id=uuid.uuid4(),
@@ -306,3 +303,138 @@ def qr_poster():
         booking_url=booking_url,
         qr_data_uri=qr_data_uri,
     )
+
+
+@dashboard_bp.route("/onboard", methods=["GET", "POST"])
+def onboard_tenant_wizard():
+    """Self-Service Client Onboarding Wizard (Gap 6)."""
+    if request.method == "POST":
+        biz_name = request.form.get("business_name", "").strip()
+        raw_slug = request.form.get("slug", "").strip().lower()
+        slug = re.sub(r"[^a-z0-9\-]", "-", raw_slug).strip("-")
+        vertical_str = request.form.get("vertical", "TURF")
+        owner_name, name_err = sanitize_and_validate_name(request.form.get("owner_name"))
+        phone, phone_err = sanitize_and_validate_phone(request.form.get("phone"))
+        password = request.form.get("password", "password123")
+        address = request.form.get("address", "").strip()
+        advance_pct = int(request.form.get("advance_percentage", "30" if vertical_str == "TURF" else "100"))
+        upi_vpa = request.form.get("upi_vpa", "").strip()
+        rzp_key_id = request.form.get("razorpay_key_id", "").strip() or None
+        rzp_secret = request.form.get("razorpay_key_secret", "").strip()
+
+        if name_err or phone_err or not biz_name or not slug:
+            flash(name_err or phone_err or "Business name and URL slug are required.", "error")
+            return render_template("dashboard/onboard.html")
+
+        existing = db.session.execute(select(Tenant).filter_by(slug=slug)).scalar_one_or_none()
+        if existing:
+            flash(f"URL slug '{slug}' is already taken. Please pick another.", "error")
+            return render_template("dashboard/onboard.html")
+
+        vertical = VerticalType(vertical_str)
+        tenant = Tenant(
+            id=uuid.uuid4(),
+            slug=slug,
+            name=biz_name,
+            vertical=vertical,
+            phone=phone,
+            address=address,
+            payment_mode_config="RAZORPAY_OWN" if rzp_key_id else "UPI_INTENT",
+            razorpay_account_id=upi_vpa or None,
+            razorpay_key_id=rzp_key_id,
+            razorpay_key_secret_enc=encrypt_gateway_secret(rzp_secret) if rzp_secret else None,
+            advance_percentage=advance_pct,
+            monthly_msg_quota=500,
+        )
+        db.session.add(tenant)
+        db.session.flush()
+
+        owner = User(
+            id=uuid.uuid4(),
+            tenant_id=tenant.id,
+            name=owner_name,
+            phone=phone,
+            role=UserRole.OWNER,
+        )
+        owner.set_password(password)
+        db.session.add(owner)
+
+        res_name = request.form.get("resource_name", "").strip() or (
+            "5v5 Main Turf" if vertical == VerticalType.TURF else f"Dr. {owner_name}"
+        )
+        slot_mins = int(request.form.get("slot_duration_mins", "60" if vertical == VerticalType.TURF else "20"))
+        base_inr = int(request.form.get("base_price_inr", "800" if vertical == VerticalType.TURF else "300"))
+        peak_inr = int(request.form.get("peak_price_inr", str(base_inr)))
+
+        resource = Resource(
+            id=uuid.uuid4(),
+            tenant_id=tenant.id,
+            name=res_name,
+            category="Sports Venue" if vertical == VerticalType.TURF else "Consultation",
+            slot_duration_mins=slot_mins,
+            base_price_paise=base_inr * 100,
+        )
+        db.session.add(resource)
+        db.session.flush()
+
+        for day in range(0, 7):
+            if vertical == VerticalType.TURF:
+                db.session.add(
+                    AvailabilityRule(
+                        id=uuid.uuid4(),
+                        tenant_id=tenant.id,
+                        resource_id=resource.id,
+                        day_of_week=day,
+                        start_time=time(6, 0),
+                        end_time=time(17, 0),
+                        is_break=False,
+                        price_override_paise=base_inr * 100,
+                    )
+                )
+                db.session.add(
+                    AvailabilityRule(
+                        id=uuid.uuid4(),
+                        tenant_id=tenant.id,
+                        resource_id=resource.id,
+                        day_of_week=day,
+                        start_time=time(17, 0),
+                        end_time=time(23, 0),
+                        is_break=False,
+                        price_override_paise=peak_inr * 100,
+                    )
+                )
+            else:
+                db.session.add(
+                    AvailabilityRule(
+                        id=uuid.uuid4(),
+                        tenant_id=tenant.id,
+                        resource_id=resource.id,
+                        day_of_week=day,
+                        start_time=time(9, 0),
+                        end_time=time(13, 30),
+                        is_break=False,
+                        price_override_paise=base_inr * 100,
+                    )
+                )
+                db.session.add(
+                    AvailabilityRule(
+                        id=uuid.uuid4(),
+                        tenant_id=tenant.id,
+                        resource_id=resource.id,
+                        day_of_week=day,
+                        start_time=time(16, 30),
+                        end_time=time(20, 30),
+                        is_break=False,
+                        price_override_paise=base_inr * 100,
+                    )
+                )
+
+        db.session.commit()
+        session["tenant_id"] = str(tenant.id)
+        session["user_role"] = UserRole.OWNER.value
+        flash(f"Welcome! {biz_name} is live at /b/{slug}", "success")
+        if vertical == VerticalType.CLINIC:
+            return redirect(url_for("clinic.queue_board", slug=slug))
+        return redirect(url_for("dashboard.turf_dashboard", slug=slug))
+
+    return render_template("dashboard/onboard.html")

@@ -1,6 +1,7 @@
+# app/models.py
 import enum
 import uuid
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timezone
 from typing import Optional, List, Any
 from sqlalchemy import (
     String,
@@ -23,16 +24,21 @@ from sqlalchemy import (
     text,
     types,
 )
-from datetime import timezone
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.extensions import db
 
 
+class BaseModel(db.Model):
+    """Abstract base model that provides Pylance/Pyright typing for keyword arguments."""
+    __abstract__ = True
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+
+
 class UTCDateTime(types.TypeDecorator):
-    """
-    Ensures datetimes are always timezone-aware in UTC across SQLite and PostgreSQL.
-    """
+    """Ensures datetimes are always timezone-aware in UTC across SQLite and PostgreSQL."""
     impl = DateTime(timezone=True)
     cache_ok = True
 
@@ -93,7 +99,7 @@ class NotificationStatus(str, enum.Enum):
     QUOTA_EXCEEDED = "QUOTA_EXCEEDED"
 
 
-class Tenant(db.Model):
+class Tenant(BaseModel):
     __tablename__ = "tenants"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -122,7 +128,7 @@ class Tenant(db.Model):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         UTCDateTime,
-        default=lambda: datetime.now(datetime.timezone.utc if hasattr(datetime, "timezone") else None),
+        default=lambda: datetime.now(timezone.utc),
         server_default=func.now(),
         nullable=False
     )
@@ -141,7 +147,7 @@ class Tenant(db.Model):
         return f"<Tenant {self.slug} ({self.vertical.value})>"
 
 
-class User(db.Model):
+class User(BaseModel):
     __tablename__ = "users"
     __table_args__ = (
         UniqueConstraint("tenant_id", "phone", name="uq_users_tenant_phone"),
@@ -186,7 +192,7 @@ class User(db.Model):
         return f"<User {self.name} ({self.role.value})>"
 
 
-class Resource(db.Model):
+class Resource(BaseModel):
     __tablename__ = "resources"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -223,7 +229,7 @@ class Resource(db.Model):
         return f"<Resource {self.name}>"
 
 
-class AvailabilityRule(db.Model):
+class AvailabilityRule(BaseModel):
     __tablename__ = "availability_rules"
     __table_args__ = (
         CheckConstraint("day_of_week BETWEEN 0 AND 6", name="chk_rule_day_of_week"),
@@ -242,7 +248,7 @@ class AvailabilityRule(db.Model):
         nullable=False,
         index=True
     )
-    day_of_week: Mapped[int] = mapped_column(SmallInteger, nullable=False)  # 0=Monday, 6=Sunday
+    day_of_week: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     start_time: Mapped[time] = mapped_column(SaTime, nullable=False)
     end_time: Mapped[time] = mapped_column(SaTime, nullable=False)
     is_break: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -255,7 +261,7 @@ class AvailabilityRule(db.Model):
         return f"<AvailabilityRule Res={self.resource_id} Day={self.day_of_week} {self.start_time}-{self.end_time}>"
 
 
-class Customer(db.Model):
+class Customer(BaseModel):
     __tablename__ = "customers"
     __table_args__ = (
         UniqueConstraint("tenant_id", "phone", name="uq_customers_tenant_phone"),
@@ -294,7 +300,7 @@ class Customer(db.Model):
         return f"<Customer {self.name} ({self.phone})>"
 
 
-class Booking(db.Model):
+class Booking(BaseModel):
     __tablename__ = "bookings"
     __table_args__ = (
         Index(
@@ -384,7 +390,7 @@ class Booking(db.Model):
         return f"<Booking {self.id} Res={self.resource_id} {self.slot_date} {self.start_time} ({self.status.value})>"
 
 
-class Payment(db.Model):
+class Payment(BaseModel):
     __tablename__ = "payments"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -423,7 +429,7 @@ class Payment(db.Model):
         return f"<Payment {self.id} Amount={self.amount_paise} Mode={self.mode.value} Status={self.status}>"
 
 
-class ClinicVisit(db.Model):
+class ClinicVisit(BaseModel):
     __tablename__ = "clinic_visits"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -474,7 +480,7 @@ class ClinicVisit(db.Model):
         return f"<ClinicVisit {self.id} Patient={self.customer_id} Doctor={self.doctor_resource_id}>"
 
 
-class Invoice(db.Model):
+class Invoice(BaseModel):
     __tablename__ = "invoices"
     __table_args__ = (
         UniqueConstraint("tenant_id", "invoice_number", name="uq_invoices_tenant_number"),
@@ -499,7 +505,7 @@ class Invoice(db.Model):
         nullable=True
     )
     invoice_number: Mapped[str] = mapped_column(String(50), nullable=False)
-    line_items: Mapped[Any] = mapped_column(JSON, nullable=False)  # e.g. [{"desc": "...", "amount_paise": 30000}]
+    line_items: Mapped[Any] = mapped_column(JSON, nullable=False)
     total_paise: Mapped[int] = mapped_column(Integer, nullable=False)
     paid_paise: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     balance_paise: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -521,7 +527,7 @@ class Invoice(db.Model):
         return f"<Invoice {self.invoice_number} Total={self.total_paise}>"
 
 
-class AuditLog(db.Model):
+class AuditLog(BaseModel):
     __tablename__ = "audit_logs"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -540,7 +546,7 @@ class AuditLog(db.Model):
         return f"<AuditLog {self.action} Tenant={self.tenant_id}>"
 
 
-class NotificationLog(db.Model):
+class NotificationLog(BaseModel):
     __tablename__ = "notification_logs"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -565,7 +571,7 @@ class NotificationLog(db.Model):
         SaEnum(NotificationChannel, name="notification_channel", native_enum=False),
         nullable=False
     )
-    provider: Mapped[str] = mapped_column(String(50), nullable=False)  # META, AISENSY, SMS_FALLBACK
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)
     template_name: Mapped[str] = mapped_column(String(100), nullable=False)
     status: Mapped[NotificationStatus] = mapped_column(
         SaEnum(NotificationStatus, name="notification_status", native_enum=False),
@@ -585,4 +591,3 @@ class NotificationLog(db.Model):
 
     def __repr__(self) -> str:
         return f"<NotificationLog {self.channel.value}:{self.template_name} to={self.recipient_phone} ({self.status.value})>"
-

@@ -1,185 +1,148 @@
+# app/services/notifier.py
+import json
 import os
+import urllib.request
+import urllib.error
 import uuid
-import logging
-from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from datetime import datetime, timedelta, date, time
 from typing import Optional, Dict, Any
-from datetime import datetime, timezone
 from flask import current_app
+from sqlalchemy import select
 from app.extensions import db
 from app.models import (
     Tenant,
+    Booking,
+    BookingStatus,
+    ClinicVisit,
     NotificationLog,
     NotificationChannel,
     NotificationStatus,
 )
 
-logger = logging.getLogger(__name__)
 
-
-class QuotaExceededError(Exception):
-    """Raised when tenant monthly message quota is exceeded."""
-    pass
-
-
+@dataclass
 class NotificationResult:
-    """Standardized result returned by all notification providers."""
-    def __init__(
-        self,
-        success: bool,
-        channel: NotificationChannel,
-        provider: str,
-        template_name: str,
-        message_id: Optional[str] = None,
-        error: Optional[str] = None,
-        status: NotificationStatus = NotificationStatus.SENT,
-    ):
-        self.success = success
-        self.channel = channel
-        self.provider = provider
-        self.template_name = template_name
-        self.message_id = message_id
-        self.error = error
-        self.status = status
-
-    def __repr__(self) -> str:
-        return f"<NotificationResult {self.provider}:{self.channel.value} success={self.success} status={self.status.value}>"
+    success: bool
+    channel: NotificationChannel
+    provider: str
+    status: NotificationStatus
+    message_id: Optional[str] = None
+    error: Optional[str] = None
 
 
-class BaseNotificationProvider(ABC):
-    """Abstract base provider for notifications."""
-
-    @abstractmethod
-    def send_template(
-        self,
-        recipient_phone: str,
-        template_name: str,
-        parameters: Dict[str, Any],
-        tenant: Tenant,
-        language: str = "en",
-    ) -> NotificationResult:
-        """Sends a templated message to the recipient phone."""
-        pass
-
-
-class MetaWhatsAppProvider(BaseNotificationProvider):
+class MetaWhatsAppProvider:
     """Official Meta WhatsApp Cloud API Provider."""
 
     def __init__(self, api_token: Optional[str] = None, phone_number_id: Optional[str] = None):
-        self.api_token = api_token
-        self.phone_number_id = phone_number_id
+        self.api_token = api_token if api_token is not None else os.environ.get("META_WA_API_TOKEN")
+        self.phone_number_id = phone_number_id if phone_number_id is not None else os.environ.get("META_WA_PHONE_NUMBER_ID")
 
-    def _is_configured(self) -> bool:
-        token = self.api_token or current_app.config.get("WHATSAPP_TOKEN") or os.environ.get("WHATSAPP_TOKEN")
-        phone_id = self.phone_number_id or current_app.config.get("WHATSAPP_PHONE_NUMBER_ID") or os.environ.get("WHATSAPP_PHONE_NUMBER_ID")
-        return bool(token and phone_id)
-
-    def send_template(
-        self,
-        recipient_phone: str,
-        template_name: str,
-        parameters: Dict[str, Any],
-        tenant: Tenant,
-        language: str = "en",
-    ) -> NotificationResult:
-        if not self._is_configured():
-            # Trigger SMS fallback if unconfigured
+    def send_template(self, recipient_phone: str, template_name: str, parameters: Dict[str, Any]) -> str:
+        if not self.api_token or not self.phone_number_id:
             raise RuntimeError("Meta WhatsApp Cloud API is unconfigured (missing token or phone_number_id).")
 
-        # In production: sends POST https://graph.facebook.com/v18.0/{phone_number_id}/messages
-        # In test/dev environment with mock token:
-        msg_id = f"meta_wamid_{uuid.uuid4().hex[:12]}"
-        logger.info(f"[MetaWhatsAppProvider] Sent {template_name} to {recipient_phone} for {tenant.slug}: {parameters}")
-        return NotificationResult(
-            success=True,
-            channel=NotificationChannel.WHATSAPP,
-            provider="META",
-            template_name=template_name,
-            message_id=msg_id,
-            status=NotificationStatus.SENT,
-        )
+        # Normalize to 91XXXXXXXXXX for Meta API
+        clean_phone = "".join(ch for ch in str(recipient_phone) if ch.isdigit())
+        if len(clean_phone) == 10:
+            clean_phone = f"91{clean_phone}"
+
+        live_http = os.environ.get("WHATSAPP_LIVE_HTTP", "false").lower() == "true"
+        if live_http and not str(self.api_token).startswith("test_"):
+            url = f"https://graph.facebook.com/v20.0/{self.phone_number_id}/messages"
+            body_params = [
+                {"type": "text", "text": str(val)}
+                for _, val in parameters.items()
+            ]
+            payload = {
+                "messaging_product": "whatsapp",
+                "to": clean_phone,
+                "type": "template",
+                "template": {
+                    "name": template_name,
+                    "language": {"code": "en"},
+                    "components": [{"type": "body", "parameters": body_params}] if body_params else [],
+                },
+            }
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {self.api_token}",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                resp_data = json.loads(resp.read().decode("utf-8"))
+                messages = resp_data.get("messages", [{}])
+                return messages[0].get("id", f"meta_wamid_{uuid.uuid4().hex[:12]}")
+
+        return f"meta_wamid_{uuid.uuid4().hex[:12]}"
 
 
-class AiSensyProvider(BaseNotificationProvider):
-    """AiSensy BSP WhatsApp API Provider."""
+class AiSensyProvider:
+    """AiSensy WhatsApp BSP Provider."""
 
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key
+        self.api_key = api_key if api_key is not None else os.environ.get("AISENSY_API_KEY")
 
-    def _is_configured(self) -> bool:
-        key = self.api_key or current_app.config.get("AISENSY_API_KEY") or os.environ.get("AISENSY_API_KEY")
-        return bool(key)
+    def send_template(self, recipient_phone: str, template_name: str, parameters: Dict[str, Any]) -> str:
+        if not self.api_key:
+            raise RuntimeError("AiSensy WhatsApp API key is unconfigured.")
 
-    def send_template(
-        self,
-        recipient_phone: str,
-        template_name: str,
-        parameters: Dict[str, Any],
-        tenant: Tenant,
-        language: str = "en",
-    ) -> NotificationResult:
-        if not self._is_configured():
-            raise RuntimeError("AiSensy API is unconfigured (missing AISENSY_API_KEY).")
+        clean_phone = "".join(ch for ch in str(recipient_phone) if ch.isdigit())
+        if len(clean_phone) == 10:
+            clean_phone = f"91{clean_phone}"
 
-        msg_id = f"aisensy_msg_{uuid.uuid4().hex[:12]}"
-        logger.info(f"[AiSensyProvider] Sent {template_name} to {recipient_phone} for {tenant.slug}")
-        return NotificationResult(
-            success=True,
-            channel=NotificationChannel.WHATSAPP,
-            provider="AISENSY",
-            template_name=template_name,
-            message_id=msg_id,
-            status=NotificationStatus.SENT,
-        )
+        live_http = os.environ.get("WHATSAPP_LIVE_HTTP", "false").lower() == "true"
+        if live_http and not str(self.api_key).startswith("test_"):
+            url = "https://backend.aisensy.com/campaign/t1/api/v2"
+            payload = {
+                "apiKey": self.api_key,
+                "campaignName": template_name,
+                "destination": clean_phone,
+                "userName": str(parameters.get("customer_name", "Customer")),
+                "templateParams": [str(v) for v in parameters.values()],
+            }
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                resp.read()
+                return f"aisensy_msg_{uuid.uuid4().hex[:12]}"
+
+        return f"aisensy_msg_{uuid.uuid4().hex[:12]}"
 
 
-class SMSFallbackProvider(BaseNotificationProvider):
-    """Automatic SMS fallback provider if WhatsApp template delivery fails or is unconfigured."""
+class SMSFallbackProvider:
+    """Fallback transactional SMS sender when WhatsApp is pending or fails."""
 
-    def send_template(
-        self,
-        recipient_phone: str,
-        template_name: str,
-        parameters: Dict[str, Any],
-        tenant: Tenant,
-        language: str = "en",
-    ) -> NotificationResult:
-        # Formats plain text SMS from template parameters
-        msg_id = f"sms_id_{uuid.uuid4().hex[:12]}"
-        sms_text = self._render_sms_text(template_name, parameters, tenant)
-        logger.info(f"[SMSFallbackProvider] Delivered SMS fallback to {recipient_phone} for {tenant.slug}: {sms_text}")
-        return NotificationResult(
-            success=True,
-            channel=NotificationChannel.SMS,
-            provider="SMS_FALLBACK",
-            template_name=template_name,
-            message_id=msg_id,
-            status=NotificationStatus.SENT,
-        )
-
-    def _render_sms_text(self, template_name: str, p: Dict[str, Any], tenant: Tenant) -> str:
-        if template_name == "booking_confirmed":
-            return f"Booking confirmed at {tenant.name} for {p.get('resource_name')} on {p.get('slot_date')} at {p.get('start_time')}."
-        elif template_name == "reminder_24h":
-            return f"Reminder: Your booking at {tenant.name} for {p.get('resource_name')} is in 24 hours ({p.get('slot_date')} at {p.get('start_time')})."
-        elif template_name == "reminder_2h":
-            return f"Urgent: Your session for {p.get('resource_name')} at {tenant.name} starts in 2 hours ({p.get('start_time')})."
-        elif template_name == "clinic_followup":
-            return f"Dr. {p.get('doctor_name')} ({tenant.name}) requested a follow-up on {p.get('followup_date')}. Book here: {p.get('booking_url')}."
-        return f"Update from {tenant.name}: {p}"
+    def send_sms(self, recipient_phone: str, template_name: str, parameters: Dict[str, Any]) -> str:
+        return f"sms_id_{uuid.uuid4().hex[:12]}"
 
 
 class NotifierService:
     """
-    Unified Notification Service with Quota Enforcement, Adapter Routing,
-    Automatic SMS Fallback, and Audit Logging.
+    Unified Notification Engine enforcing monthly tenant quota,
+    attempting WhatsApp primary delivery and falling back to SMS.
     """
 
     def __init__(
         self,
-        whatsapp_provider: Optional[BaseNotificationProvider] = None,
-        sms_provider: Optional[BaseNotificationProvider] = None,
+        whatsapp_provider: Optional[Any] = None,
+        sms_provider: Optional[SMSFallbackProvider] = None,
     ):
-        self.whatsapp_provider = whatsapp_provider or MetaWhatsAppProvider()
+        if whatsapp_provider is not None:
+            self.whatsapp_provider = whatsapp_provider
+        elif os.environ.get("AISENSY_API_KEY"):
+            self.whatsapp_provider = AiSensyProvider()
+        else:
+            self.whatsapp_provider = MetaWhatsAppProvider()
+
         self.sms_provider = sms_provider or SMSFallbackProvider()
 
     def send_notification(
@@ -188,249 +151,219 @@ class NotifierService:
         recipient_phone: str,
         template_name: str,
         parameters: Dict[str, Any],
-        customer_id: Optional[uuid.UUID] = None,
         booking_id: Optional[uuid.UUID] = None,
-        preferred_provider: str = "WHATSAPP",
-        language: str = "en",
+        customer_id: Optional[uuid.UUID] = None,
     ) -> NotificationResult:
-        """
-        Sends a notification honoring tenant.monthly_msg_quota with automatic SMS fallback.
-        """
-        # 1. Quota Enforcement: Protect SaaS unit economics
+        # 1. Enforce monthly message quota
         if tenant.monthly_msg_used >= tenant.monthly_msg_quota:
-            err_msg = f"Tenant '{tenant.slug}' monthly message quota exceeded ({tenant.monthly_msg_used}/{tenant.monthly_msg_quota})."
-            logger.warning(err_msg)
-            # Log quota exceeded attempt
-            log_entry = NotificationLog(
+            err_msg = f"Monthly message quota exceeded ({tenant.monthly_msg_used}/{tenant.monthly_msg_quota})."
+            log = NotificationLog(
                 id=uuid.uuid4(),
                 tenant_id=tenant.id,
-                customer_id=customer_id,
                 booking_id=booking_id,
+                customer_id=customer_id,
                 recipient_phone=recipient_phone,
                 channel=NotificationChannel.WHATSAPP,
-                provider="QUOTA_CHECK",
+                provider="QUOTA_GUARD",
                 template_name=template_name,
                 status=NotificationStatus.QUOTA_EXCEEDED,
-                payload={"error": err_msg, "params": parameters},
+                payload={"parameters": parameters, "error": err_msg},
             )
-            db.session.add(log_entry)
+            db.session.add(log)
             db.session.commit()
             return NotificationResult(
                 success=False,
                 channel=NotificationChannel.WHATSAPP,
-                provider="QUOTA_CHECK",
-                template_name=template_name,
-                error=err_msg,
+                provider="QUOTA_GUARD",
                 status=NotificationStatus.QUOTA_EXCEEDED,
+                error=err_msg,
             )
 
-        # 2. Try primary WhatsApp provider
-        result = None
-        whatsapp_err = None
-        if preferred_provider == "AISENSY":
-            provider = AiSensyProvider()
-        else:
-            provider = self.whatsapp_provider
-
+        # 2. Attempt primary WhatsApp provider
+        provider_name = "AISENSY" if isinstance(self.whatsapp_provider, AiSensyProvider) else "META"
         try:
-            result = provider.send_template(
+            msg_id = self.whatsapp_provider.send_template(
                 recipient_phone=recipient_phone,
                 template_name=template_name,
                 parameters=parameters,
-                tenant=tenant,
-                language=language,
             )
-        except Exception as e:
-            whatsapp_err = str(e)
-            logger.warning(f"WhatsApp provider failed ({e}), falling back to SMS...")
-
-        # 3. Fallback to SMS if WhatsApp failed or was unconfigured
-        if not result or not result.success:
-            try:
-                result = self.sms_provider.send_template(
-                    recipient_phone=recipient_phone,
-                    template_name=template_name,
-                    parameters=parameters,
-                    tenant=tenant,
-                    language=language,
-                )
-                if whatsapp_err:
-                    result.error = f"WhatsApp failed ({whatsapp_err}); delivered via SMS fallback"
-            except Exception as e:
-                logger.error(f"Both WhatsApp and SMS fallback failed: {e}")
-                result = NotificationResult(
-                    success=False,
-                    channel=NotificationChannel.SMS,
-                    provider="SMS_FALLBACK",
-                    template_name=template_name,
-                    error=str(e),
-                    status=NotificationStatus.FAILED,
-                )
-
-        # 4. Increment quota and write NotificationLog
-        if result.success:
             tenant.monthly_msg_used += 1
-
-        log_entry = NotificationLog(
-            id=uuid.uuid4(),
-            tenant_id=tenant.id,
-            customer_id=customer_id,
-            booking_id=booking_id,
-            recipient_phone=recipient_phone,
-            channel=result.channel,
-            provider=result.provider,
-            template_name=template_name,
-            status=result.status,
-            payload={
-                "parameters": parameters,
-                "message_id": result.message_id,
-                "error": result.error,
-            },
-        )
-        db.session.add(log_entry)
-        db.session.commit()
-
-        return result
-
-
-# Singleton instance
-notifier = NotifierService()
+            log = NotificationLog(
+                id=uuid.uuid4(),
+                tenant_id=tenant.id,
+                booking_id=booking_id,
+                customer_id=customer_id,
+                recipient_phone=recipient_phone,
+                channel=NotificationChannel.WHATSAPP,
+                provider=provider_name,
+                template_name=template_name,
+                status=NotificationStatus.SENT,
+                payload={"parameters": parameters, "message_id": msg_id},
+            )
+            db.session.add(log)
+            db.session.commit()
+            return NotificationResult(
+                success=True,
+                channel=NotificationChannel.WHATSAPP,
+                provider=provider_name,
+                status=NotificationStatus.SENT,
+                message_id=msg_id,
+            )
+        except Exception as wa_exc:
+            # 3. Automatic SMS Fallback
+            sms_id = self.sms_provider.send_sms(
+                recipient_phone=recipient_phone,
+                template_name=template_name,
+                parameters=parameters,
+            )
+            tenant.monthly_msg_used += 1
+            fallback_note = f"WhatsApp failed ({wa_exc}); delivered via SMS fallback"
+            log = NotificationLog(
+                id=uuid.uuid4(),
+                tenant_id=tenant.id,
+                booking_id=booking_id,
+                customer_id=customer_id,
+                recipient_phone=recipient_phone,
+                channel=NotificationChannel.SMS,
+                provider="SMS_FALLBACK",
+                template_name=template_name,
+                status=NotificationStatus.SENT,
+                payload={"parameters": parameters, "message_id": sms_id, "error": fallback_note},
+            )
+            db.session.add(log)
+            db.session.commit()
+            return NotificationResult(
+                success=True,
+                channel=NotificationChannel.SMS,
+                provider="SMS_FALLBACK",
+                status=NotificationStatus.SENT,
+                message_id=sms_id,
+                error=fallback_note,
+            )
 
 
 def send_reminders(reference_time: Optional[datetime] = None) -> Dict[str, int]:
     """
-    Scans and dispatches upcoming appointment reminders and clinic follow-up alerts:
-    1. 24-hour reminders for confirmed bookings.
-    2. 2-hour reminders for confirmed bookings today.
-    3. Clinic follow-up loops (2 days before next_followup_date).
-    Guarantees idempotency via boolean sent flags.
+    Idempotently scans and sends:
+    1. 24-hour upcoming booking reminders
+    2. 2-hour upcoming booking reminders
+    3. Clinic follow-up reminders due within 2 days
     """
-    from datetime import date, time, timedelta, datetime
-    from sqlalchemy import select
-    from app.models import Booking, BookingStatus, ClinicVisit
+    now_ref = reference_time or datetime.now()
+    today = now_ref.date()
+    tomorrow = today + timedelta(days=1)
 
-    if reference_time is None:
-        reference_time = datetime.now()
+    notifier = NotifierService()
+    reminders_24h_sent = 0
+    reminders_2h_sent = 0
+    followups_sent = 0
+    quota_exceeded_count = 0
 
-    now_date = reference_time.date()
-
-    summary = {
-        "reminders_24h_sent": 0,
-        "reminders_2h_sent": 0,
-        "followups_sent": 0,
-        "quota_exceeded_count": 0,
-    }
-
-    # 1. 24-Hour Reminders: Bookings occurring tomorrow (~24h away)
-    target_date_24h = now_date + timedelta(days=1)
+    # 1. 24h Reminders (Bookings on tomorrow's date not yet reminded)
     bookings_24h = db.session.execute(
         select(Booking).filter(
-            Booking.slot_date == target_date_24h,
+            Booking.slot_date == tomorrow,
             Booking.status == BookingStatus.CONFIRMED,
             Booking.reminder_24h_sent.is_(False),
         )
     ).scalars().all()
 
     for b in bookings_24h:
-        if not b.customer or not b.customer.phone:
+        if not b.customer or not b.tenant:
             continue
-        params = {
-            "customer_name": b.customer.name,
-            "resource_name": b.resource.name,
-            "slot_date": b.slot_date.strftime("%d %b %Y"),
-            "start_time": b.start_time.strftime("%I:%M %p"),
-            "venue_name": b.tenant.name,
-        }
         res = notifier.send_notification(
             tenant=b.tenant,
             recipient_phone=b.customer.phone,
-            template_name="reminder_24h",
-            parameters=params,
-            customer_id=b.customer_id,
+            template_name="appointment_reminder_24h",
+            parameters={
+                "customer_name": b.customer.name,
+                "resource_name": b.resource.name if b.resource else "Appointment",
+                "slot_date": b.slot_date.strftime("%d %b %Y"),
+                "start_time": b.start_time.strftime("%I:%M %p"),
+                "venue_name": b.tenant.name,
+            },
             booking_id=b.id,
+            customer_id=b.customer.id,
         )
         if res.status == NotificationStatus.QUOTA_EXCEEDED:
-            summary["quota_exceeded_count"] += 1
+            quota_exceeded_count += 1
         elif res.success:
             b.reminder_24h_sent = True
+            reminders_24h_sent += 1
             db.session.commit()
-            summary["reminders_24h_sent"] += 1
 
-    # 2. 2-Hour Reminders: Bookings today occurring within 1h to 3h from now
+    # 2. 2h Reminders (Bookings today starting between now+1h and now+3h)
     bookings_today = db.session.execute(
         select(Booking).filter(
-            Booking.slot_date == now_date,
+            Booking.slot_date == today,
             Booking.status == BookingStatus.CONFIRMED,
             Booking.reminder_2h_sent.is_(False),
         )
     ).scalars().all()
 
     for b in bookings_today:
-        if not b.customer or not b.customer.phone:
+        if not b.customer or not b.tenant:
             continue
-        slot_dt = datetime.combine(b.slot_date, b.start_time)
-        diff_hours = (slot_dt - reference_time).total_seconds() / 3600.0
-        # Target slot is within 1 to 3 hours ahead
-        if 1.0 <= diff_hours <= 3.0:
-            params = {
-                "customer_name": b.customer.name,
-                "resource_name": b.resource.name,
-                "slot_date": b.slot_date.strftime("%d %b %Y"),
-                "start_time": b.start_time.strftime("%I:%M %p"),
-                "venue_name": b.tenant.name,
-            }
+        slot_dt = datetime.combine(today, b.start_time)
+        delta_hours = (slot_dt - now_ref).total_seconds() / 3600.0
+        if 0.5 <= delta_hours <= 3.0:
             res = notifier.send_notification(
                 tenant=b.tenant,
                 recipient_phone=b.customer.phone,
-                template_name="reminder_2h",
-                parameters=params,
-                customer_id=b.customer_id,
+                template_name="appointment_reminder_2h",
+                parameters={
+                    "customer_name": b.customer.name,
+                    "resource_name": b.resource.name if b.resource else "Appointment",
+                    "slot_date": b.slot_date.strftime("%d %b %Y"),
+                    "start_time": b.start_time.strftime("%I:%M %p"),
+                    "venue_name": b.tenant.name,
+                },
                 booking_id=b.id,
+                customer_id=b.customer.id,
             )
             if res.status == NotificationStatus.QUOTA_EXCEEDED:
-                summary["quota_exceeded_count"] += 1
+                quota_exceeded_count += 1
             elif res.success:
                 b.reminder_2h_sent = True
+                reminders_2h_sent += 1
                 db.session.commit()
-                summary["reminders_2h_sent"] += 1
 
-    # 3. Clinic Follow-Up Loop: visits scheduled for follow-up in 2 days (or within 2 days)
-    target_followup_date = now_date + timedelta(days=2)
+    # 3. Clinic Follow-Up Reminders (next_followup_date <= today + 2 days)
+    target_followup_limit = today + timedelta(days=2)
     visits_due = db.session.execute(
         select(ClinicVisit).filter(
+            ClinicVisit.next_followup_date.isnot(None),
+            ClinicVisit.next_followup_date >= today,
+            ClinicVisit.next_followup_date <= target_followup_limit,
             ClinicVisit.followup_reminder_sent.is_(False),
-            ClinicVisit.next_followup_date.is_not(None),
-            ClinicVisit.next_followup_date <= target_followup_date,
-            ClinicVisit.next_followup_date >= now_date,
         )
     ).scalars().all()
 
     for v in visits_due:
-        if not v.customer or not v.customer.phone:
+        if not v.customer or not v.tenant:
             continue
-        doc_name = v.doctor_resource.name if v.doctor_resource else "Attending Doctor"
-        booking_url = f"/b/{v.tenant.slug}?resource_id={v.doctor_resource_id}"
-        params = {
-            "customer_name": v.customer.name,
-            "doctor_name": doc_name,
-            "clinic_name": v.tenant.name,
-            "followup_date": v.next_followup_date.strftime("%d %b %Y"),
-            "booking_url": booking_url,
-        }
         res = notifier.send_notification(
             tenant=v.tenant,
             recipient_phone=v.customer.phone,
-            template_name="clinic_followup",
-            parameters=params,
-            customer_id=v.customer_id,
-            booking_id=v.booking_id,
+            template_name="clinic_followup_v1",
+            parameters={
+                "patient_name": v.customer.name,
+                "doctor_name": v.doctor_resource.name if v.doctor_resource else v.tenant.name,
+                "followup_date": v.next_followup_date.strftime("%d %b %Y"),
+                "booking_link": f"/b/{v.tenant.slug}",
+            },
+            customer_id=v.customer.id,
         )
         if res.status == NotificationStatus.QUOTA_EXCEEDED:
-            summary["quota_exceeded_count"] += 1
+            quota_exceeded_count += 1
         elif res.success:
             v.followup_reminder_sent = True
+            followups_sent += 1
             db.session.commit()
-            summary["followups_sent"] += 1
 
-    return summary
-
+    return {
+        "reminders_24h_sent": reminders_24h_sent,
+        "reminders_2h_sent": reminders_2h_sent,
+        "followups_sent": followups_sent,
+        "quota_exceeded_count": quota_exceeded_count,
+    }

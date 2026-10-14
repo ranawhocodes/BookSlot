@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html lang="en" class="h-full bg-slate-950 text-slate-100 antialiased">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{% block title %}SlotEngine | Modern Booking & Queues{% endblock %}</title>
 
     <!-- Tailwind CSS CDN -->
@@ -45,14 +46,16 @@
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
             -webkit-tap-highlight-color: transparent;
         }
+
         /* Custom scrollbar for horizontal date picker */
         .no-scrollbar::-webkit-scrollbar {
             display: none;
         }
+
         .no-scrollbar {
             -ms-overflow-style: none;
-            scrollbar-width: none;
         }
+
         /* Safe area support for notch iPhones */
         .safe-bottom {
             padding-bottom: env(safe-area-inset-bottom, 16px);
@@ -60,20 +63,22 @@
     </style>
     {% block head %}{% endblock %}
 </head>
-<body class="h-full flex flex-col bg-slate-950 text-slate-100">
 
+<body class="h-full flex flex-col bg-slate-950 text-slate-100">
     <!-- Flash Notifications -->
     {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div class="fixed top-4 left-4 right-4 z-50 max-w-md mx-auto space-y-2">
-                {% for category, message in messages %}
-                    <div class="px-4 py-3 rounded-xl text-sm font-medium shadow-xl flex items-center justify-between {% if category == 'error' %}bg-rose-950/90 text-rose-200 border border-rose-500/40{% elif category == 'success' %}bg-emerald-950/90 text-emerald-200 border border-emerald-500/40{% else %}bg-slate-900/95 text-slate-200 border border-slate-700{% endif %}">
-                        <span>{{ message }}</span>
-                        <button onclick="this.parentElement.remove()" class="ml-3 text-slate-400 hover:text-white">&times;</button>
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
+    {% if messages %}
+    <div class="fixed top-4 left-4 right-4 z-50 max-w-md mx-auto space-y-2">
+        {% for category, message in messages %}
+        <div
+            class="px-4 py-3 rounded-xl text-sm font-medium shadow-xl flex items-center justify-between {% if category == 'error' %}bg-rose-950/90 text-rose-200 border border-rose-500/40{% elif category == 'success' %}bg-emerald-950/90 text-emerald-200 border border-emerald-500/40{% else %}bg-slate-900/95 text-slate-200 border border-slate-700{% endif %}">
+            <span>{{ message }}</span>
+            <button type="button" onclick="this.parentElement.remove()" title="Dismiss"
+                aria-label="Dismiss notification" class="ml-3 text-slate-400 hover:text-white">&times;</button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
     {% endwith %}
 
     <main class="flex-1 flex flex-col min-h-0">
@@ -82,4 +87,5 @@
 
     {% block scripts %}{% endblock %}
 </body>
+
 </html>

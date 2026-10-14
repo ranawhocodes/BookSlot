@@ -1,4 +1,4 @@
-<!-- Step 2: Payment Confirmation / Mock UPI -->
+<!-- Step 2: Live Razorpay / Direct UPI App Intent Checkout -->
 <div class="space-y-4 text-slate-100">
     <div class="p-3.5 bg-emerald-950/60 border border-emerald-500/40 rounded-xl flex items-center justify-between">
         <div class="flex items-center gap-2">
@@ -14,7 +14,8 @@
             <div>
                 <h4 class="font-bold text-slate-100">{{ resource.name }}</h4>
                 <p class="text-xs text-slate-400 mt-0.5">{{ booking.slot_date.strftime('%a, %d %b %Y') }}</p>
-                <p class="text-xs text-emerald-400 font-medium">{{ booking.start_time.strftime('%I:%M %p') }} - {{ booking.end_time.strftime('%I:%M %p') }}</p>
+                <p class="text-xs text-emerald-400 font-medium">{{ booking.start_time.strftime('%I:%M %p') }} - {{
+                    booking.end_time.strftime('%I:%M %p') }}</p>
             </div>
             <span class="px-2.5 py-1 bg-slate-800 text-slate-300 text-[11px] font-medium rounded-lg">
                 {{ customer.name }}
@@ -27,35 +28,112 @@
                 <span class="font-medium text-slate-200">₹{{ quote.total_amount_paise // 100 }}</span>
             </div>
             <div class="flex justify-between text-emerald-400 font-semibold text-sm">
-                <span>Payable Now (UPI Advance)</span>
+                <span>Payable Now (UPI)</span>
                 <span>₹{{ payable_paise // 100 }}</span>
             </div>
             {% if (quote.total_amount_paise - payable_paise) > 0 %}
-                <div class="flex justify-between text-slate-400 text-[11px]">
-                    <span>Balance Due at Venue</span>
-                    <span>₹{{ (quote.total_amount_paise - payable_paise) // 100 }}</span>
-                </div>
+            <div class="flex justify-between text-slate-400 text-[11px]">
+                <span>Balance Due at Venue</span>
+                <span>₹{{ (quote.total_amount_paise - payable_paise) // 100 }}</span>
+            </div>
             {% endif %}
         </div>
     </div>
 
-    <!-- Payment CTA -->
-    <form hx-post="/b/{{ tenant.slug }}/pay-mock" hx-target="#drawer-content" class="space-y-3">
+    {% if order_data.mode == 'RAZORPAY_LIVE' and order_data.key_id %}
+    <!-- Live Razorpay Standard Checkout Modal Trigger -->
+    <form id="rzp-verify-form" hx-post="/b/{{ tenant.slug }}/verify-payment" hx-target="#drawer-content">
+        <input type="hidden" name="booking_id" value="{{ booking.id }}">
+        <input type="hidden" name="razorpay_order_id" id="rzp-order-id" value="{{ order_data.order_id }}">
+        <input type="hidden" name="razorpay_payment_id" id="rzp-payment-id">
+        <input type="hidden" name="razorpay_signature" id="rzp-signature">
+    </form>
+    <button type="button" onclick="launchRazorpayModal()"
+        class="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl shadow-lg shadow-emerald-500/25 active:scale-95 transition-all flex items-center justify-center gap-2 text-base">
+        <span>Pay ₹{{ payable_paise // 100 }} via Razorpay UPI</span>
+    </button>
+    <script>
+        function launchRazorpayModal() {
+            const options = {
+                key: "{{ order_data.key_id }}",
+                amount: "{{ payable_paise }}",
+                currency: "INR",
+                name: "{{ tenant.name }}",
+                description: "{{ resource.name }} ({{ booking.slot_date.strftime('%d %b') }})",
+                order_id: "{{ order_data.order_id }}",
+                prefill: {
+                    name: "{{ customer.name }}",
+                    contact: "+91{{ customer.phone }}"
+                },
+                theme: { color: "#10b981" },
+                handler: function (response) {
+                    document.getElementById('rzp-payment-id').value = response.razorpay_payment_id;
+                    document.getElementById('rzp-signature').value = response.razorpay_signature;
+                    htmx.trigger('#rzp-verify-form', 'submit');
+                }
+            };
+            const rzp = new Razorpay(options);
+            rzp.open();
+        }
+        setTimeout(launchRazorpayModal, 250);
+    </script>
+    {% endif %}
+
+    <!-- Direct Mobile UPI App Intent Deep-Link Buttons (Opens GPay / PhonePe / Paytm) -->
+    <div class="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
+        <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 block text-center">
+            Tap to Open Installed UPI App Directly
+        </span>
+        <div class="grid grid-cols-3 gap-2 text-xs font-bold">
+            <a href="{{ order_data.gpay_intent_url }}"
+                class="py-2.5 px-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-center text-white flex flex-col items-center justify-center gap-1 active:scale-95 transition-all">
+                <span class="text-blue-400">GPay</span>
+                <span class="text-[10px] text-slate-400 font-normal">Google Pay</span>
+            </a>
+            <a href="{{ order_data.phonepe_intent_url }}"
+                class="py-2.5 px-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-center text-white flex flex-col items-center justify-center gap-1 active:scale-95 transition-all">
+                <span class="text-purple-400">PhonePe</span>
+                <span class="text-[10px] text-slate-400 font-normal">Instant UPI</span>
+            </a>
+            <a href="{{ order_data.paytm_intent_url }}"
+                class="py-2.5 px-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-center text-white flex flex-col items-center justify-center gap-1 active:scale-95 transition-all">
+                <span class="text-sky-400">Paytm</span>
+                <span class="text-[10px] text-slate-400 font-normal">UPI App</span>
+            </a>
+        </div>
+
+        <a href="{{ order_data.upi_intent_url }}"
+            class="block w-full py-2.5 px-3 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-500/40 text-emerald-300 font-bold text-xs text-center">
+            Open Any UPI App (₹{{ payable_paise // 100 }}) &rarr;
+        </a>
+
+        {% if order_data.upi_qr_data_uri %}
+        <details class="text-center pt-1">
+            <summary class="text-[11px] text-slate-400 cursor-pointer hover:text-emerald-400">
+                Or Show UPI QR Code to Scan
+            </summary>
+            <div class="pt-2">
+                <img src="{{ order_data.upi_qr_data_uri }}" alt="UPI QR"
+                    class="w-36 h-36 mx-auto rounded-xl bg-white p-1.5">
+            </div>
+        </details>
+        {% endif %}
+    </div>
+
+    <!-- Instant Confirm / UTR Submission Form -->
+    <form hx-post="/b/{{ tenant.slug }}/pay-mock" hx-target="#drawer-content" class="space-y-2.5">
         <input type="hidden" name="booking_id" value="{{ booking.id }}">
         <input type="hidden" name="amount_paise" value="{{ payable_paise }}">
-
-        <button
-            type="submit"
-            class="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl shadow-lg shadow-emerald-500/25 active:scale-95 transition-all flex items-center justify-center gap-2 text-base"
-        >
+        <div>
+            <input type="text" name="utr_number" maxlength="24" placeholder="Optional: 12-digit UPI Ref / UTR Number"
+                class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500">
+        </div>
+        <button type="submit"
+            class="w-full py-3.5 px-4 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl shadow-lg shadow-emerald-500/25 active:scale-95 transition-all flex items-center justify-center gap-2 text-base">
             <svg class="w-5 h-5 text-slate-950" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
             </svg>
             Pay ₹{{ payable_paise // 100 }} via UPI (Instant Confirm)
         </button>
-
-        <p class="text-[11px] text-center text-slate-500">
-            🔒 256-bit Encrypted Mock UPI Checkout. Releases in 7 minutes if unpaid.
-        </p>
     </form>
 </div>

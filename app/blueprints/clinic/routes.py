@@ -1,8 +1,9 @@
+# app/blueprints/clinic/routes.py
 import csv
 import io
+import urllib.parse
 import uuid
 from datetime import date, datetime, time, timezone
-from typing import Optional
 from flask import (
     Blueprint,
     render_template,
@@ -15,7 +16,7 @@ from flask import (
     Response,
     current_app,
 )
-from sqlalchemy import select, func, or_, and_
+from sqlalchemy import select, func, or_
 from app.extensions import db
 from app.models import (
     Tenant,
@@ -31,6 +32,8 @@ from app.models import (
 )
 from app.middleware.tenant import resolve_current_tenant
 from app.middleware.auth import require_role
+from app.services.notifier import NotifierService
+from app.utils.validators import sanitize_and_validate_name, sanitize_and_validate_phone
 
 clinic_bp = Blueprint("clinic", __name__, url_prefix="/dashboard/clinic")
 
@@ -51,14 +54,12 @@ def queue_board():
     if not tenant:
         abort(404, description="No active clinic tenant found.")
 
-    # Date handling
     date_str = request.args.get("date")
     try:
         selected_date = date.fromisoformat(date_str) if date_str else date.today()
     except ValueError:
         selected_date = date.today()
 
-    # Doctor filtering
     doctor_id_str = request.args.get("doctor_id")
     selected_doctor_id = None
     if doctor_id_str:
@@ -67,7 +68,6 @@ def queue_board():
         except ValueError:
             pass
 
-    # Fetch active clinic doctors
     doctors = db.session.execute(
         select(Resource).filter(
             Resource.tenant_id == tenant.id,
@@ -75,7 +75,6 @@ def queue_board():
         )
     ).scalars().all()
 
-    # Query today's queue entries
     query = select(Booking).filter(
         Booking.tenant_id == tenant.id,
         Booking.slot_date == selected_date,
@@ -89,10 +88,8 @@ def queue_board():
     if selected_doctor_id:
         query = query.filter(Booking.resource_id == selected_doctor_id)
 
-    # Order: IN_CONSULTATION first, then waiting (walk-ins by token, appts by start_time)
     all_queue = db.session.execute(query).scalars().all()
 
-    # Sort queue: IN_CONSULTATION top, then WAITING (walkins by token, appointments by start_time), then COMPLETED/NO_SHOW
     def queue_sort_key(b: Booking):
         status_rank = {
             BookingStatus.IN_CONSULTATION: 0,
@@ -106,7 +103,6 @@ def queue_board():
 
     queue_entries = sorted(all_queue, key=queue_sort_key)
 
-    # Summary Stats
     waiting_count = sum(1 for b in queue_entries if b.status == BookingStatus.CONFIRMED)
     in_consultation_count = sum(1 for b in queue_entries if b.status == BookingStatus.IN_CONSULTATION)
     completed_count = sum(1 for b in queue_entries if b.status == BookingStatus.COMPLETED)
@@ -127,7 +123,6 @@ def queue_board():
         no_show_count=no_show_count,
         current_role=current_role,
     )
-
 
 
 def _find_next_walkin_slot(tenant_id: uuid.UUID, doctor: Resource, slot_date: date) -> tuple[time, time]:
@@ -151,10 +146,9 @@ def _find_next_walkin_slot(tenant_id: uuid.UUID, doctor: Resource, slot_date: da
     if slot_date == date.today():
         start_min_total = (now_time.hour * 60) + ((now_time.minute // 5) * 5)
     else:
-        start_min_total = 9 * 60  # 09:00 AM
+        start_min_total = 9 * 60
 
     duration = doctor.slot_duration_mins or 20
-
     while start_min_total < 23 * 60 + 55:
         h = (start_min_total // 60) % 24
         m = start_min_total % 60
@@ -180,8 +174,12 @@ def issue_walkin_token():
 
     doctor_id_str = request.form.get("doctor_resource_id")
     slot_date_str = request.form.get("slot_date")
-    patient_name = (request.form.get("patient_name") or "").strip()
-    patient_phone = (request.form.get("patient_phone") or "").strip().replace(" ", "").replace("-", "")
+    patient_name, name_err = sanitize_and_validate_name(request.form.get("patient_name"))
+    patient_phone, phone_err = sanitize_and_validate_phone(request.form.get("patient_phone"))
+    if name_err or phone_err:
+        flash(name_err or phone_err, "error")
+        return redirect(url_for("clinic.queue_board", slug=tenant.slug))
+
     booking_notes = request.form.get("booking_notes")
 
     try:
@@ -194,12 +192,10 @@ def issue_walkin_token():
     doctor = db.session.execute(
         select(Resource).filter_by(tenant_id=tenant.id, id=doctor_resource_id)
     ).scalar_one_or_none()
-
     if not doctor:
         flash("Doctor resource not found.", "error")
         return redirect(url_for("clinic.queue_board", slug=tenant.slug))
 
-    # 1. Upsert Customer with DPDP consent
     customer = db.session.execute(
         select(Customer).filter_by(tenant_id=tenant.id, phone=patient_phone)
     ).scalar_one_or_none()
@@ -219,7 +215,6 @@ def issue_walkin_token():
         db.session.add(customer)
     db.session.flush()
 
-    # 2. Sequential Daily Token Number for this doctor and date
     max_token = db.session.execute(
         select(func.max(Booking.token_number)).filter(
             Booking.tenant_id == tenant.id,
@@ -229,9 +224,7 @@ def issue_walkin_token():
     ).scalar() or 0
     token_number = max_token + 1
 
-    # 3. Create Walk-in Queue Booking
     start_t, end_t = _find_next_walkin_slot(tenant.id, doctor, slot_date)
-
     booking = Booking(
         id=uuid.uuid4(),
         tenant_id=tenant.id,
@@ -240,7 +233,7 @@ def issue_walkin_token():
         slot_date=slot_date,
         start_time=start_t,
         end_time=end_t,
-        status=BookingStatus.CONFIRMED,  # WAITING in queue
+        status=BookingStatus.CONFIRMED,
         locked_until=None,
         is_walkin=True,
         token_number=token_number,
@@ -258,10 +251,7 @@ def issue_walkin_token():
 @clinic_bp.route("/queue/<uuid:booking_id>/status", methods=["POST"])
 @require_role(UserRole.OWNER, UserRole.DOCTOR, UserRole.RECEPTIONIST)
 def update_queue_status(booking_id: uuid.UUID):
-    """
-    HTMX live transition endpoint:
-    WAITING (CONFIRMED) -> IN_CONSULTATION -> COMPLETED / NO_SHOW.
-    """
+    """HTMX live transition endpoint: WAITING -> IN_CONSULTATION -> COMPLETED / NO_SHOW."""
     tenant = resolve_current_tenant()
     if not tenant:
         abort(404)
@@ -269,7 +259,6 @@ def update_queue_status(booking_id: uuid.UUID):
     booking = db.session.execute(
         select(Booking).filter_by(tenant_id=tenant.id, id=booking_id)
     ).scalar_one_or_none()
-
     if not booking:
         return "<p class='text-red-500'>Booking not found.</p>", 404
 
@@ -281,13 +270,11 @@ def update_queue_status(booking_id: uuid.UUID):
         "COMPLETED": BookingStatus.COMPLETED,
         "NO_SHOW": BookingStatus.NO_SHOW,
     }
-
     if new_status_str in status_map:
         booking.status = status_map[new_status_str]
         db.session.commit()
 
     if request.headers.get("HX-Request"):
-        # Re-query queue entries and return partial table
         query = select(Booking).filter(
             Booking.tenant_id == tenant.id,
             Booking.slot_date == booking.slot_date,
@@ -322,10 +309,6 @@ def update_queue_status(booking_id: uuid.UUID):
     return redirect(url_for("clinic.queue_board", slug=tenant.slug, date=booking.slot_date.isoformat()))
 
 
-# =========================================================================
-# Patient Profile & Visit History (EMR-Lite)
-# =========================================================================
-
 @clinic_bp.route("/patients")
 @require_role(UserRole.OWNER, UserRole.DOCTOR, UserRole.RECEPTIONIST)
 def patients_list():
@@ -335,7 +318,6 @@ def patients_list():
         abort(404)
 
     search_query = (request.args.get("q") or "").strip()
-
     stmt = select(Customer).filter(Customer.tenant_id == tenant.id)
     if search_query:
         stmt = stmt.filter(
@@ -345,7 +327,6 @@ def patients_list():
             )
         )
     stmt = stmt.order_by(Customer.created_at.desc())
-
     patients = db.session.execute(stmt).scalars().all()
 
     return render_template(
@@ -359,22 +340,21 @@ def patients_list():
 @clinic_bp.route("/patients", methods=["POST"])
 @require_role(UserRole.OWNER, UserRole.DOCTOR, UserRole.RECEPTIONIST)
 def create_patient():
-    """Registers a new patient with explicit DPDP consent audit."""
+    """Registers a new patient with explicit DPDP consent audit and strict validation."""
     tenant = resolve_current_tenant()
     if not tenant:
         abort(404)
 
-    name = (request.form.get("name") or "").strip()
-    phone = (request.form.get("phone") or "").strip().replace(" ", "").replace("-", "")
+    name, name_err = sanitize_and_validate_name(request.form.get("name"))
+    phone, phone_err = sanitize_and_validate_phone(request.form.get("phone"))
     age = request.form.get("age")
     gender = request.form.get("gender")
     notes = request.form.get("notes")
 
-    if not name or len(phone) < 10:
-        flash("Patient name and 10-digit phone number are required.", "error")
+    if name_err or phone_err:
+        flash(name_err or phone_err, "error")
         return redirect(url_for("clinic.patients_list", slug=tenant.slug))
 
-    # Check for existing patient
     existing = db.session.execute(
         select(Customer).filter_by(tenant_id=tenant.id, phone=phone)
     ).scalar_one_or_none()
@@ -405,11 +385,7 @@ def create_patient():
 @clinic_bp.route("/patients/<uuid:customer_id>")
 @require_role(UserRole.OWNER, UserRole.DOCTOR, UserRole.RECEPTIONIST)
 def patient_profile(customer_id: uuid.UUID):
-    """
-    Patient Profile (EMR-Lite).
-    Restricts sensitive clinical notes to OWNER and DOCTOR roles.
-    Logs VIEW_PATIENT_RECORD in audit_logs for compliance.
-    """
+    """Patient Profile (EMR-Lite) with RBAC masking and VIEW_PATIENT_RECORD audit logging."""
     tenant = resolve_current_tenant()
     if not tenant:
         abort(404)
@@ -417,14 +393,12 @@ def patient_profile(customer_id: uuid.UUID):
     patient = db.session.execute(
         select(Customer).filter_by(tenant_id=tenant.id, id=customer_id)
     ).scalar_one_or_none()
-
     if not patient:
         abort(404, description="Patient record not found.")
 
     current_role = _get_current_role()
     can_view_clinical_notes = current_role in (UserRole.OWNER.value, UserRole.DOCTOR.value, "OWNER", "DOCTOR")
 
-    # Audit Logging for clinical record view
     user_id_val = uuid.UUID(session["user_id"]) if session.get("user_id") else None
     audit = AuditLog(
         id=uuid.uuid4(),
@@ -437,12 +411,10 @@ def patient_profile(customer_id: uuid.UUID):
     db.session.add(audit)
     db.session.commit()
 
-    # Fetch visit history
     visits = db.session.execute(
         select(ClinicVisit).filter_by(tenant_id=tenant.id, customer_id=patient.id).order_by(ClinicVisit.created_at.desc())
     ).scalars().all()
 
-    # Fetch doctors for the new consultation modal
     doctors = db.session.execute(
         select(Resource).filter_by(tenant_id=tenant.id, is_active=True)
     ).scalars().all()
@@ -461,10 +433,7 @@ def patient_profile(customer_id: uuid.UUID):
 @clinic_bp.route("/patients/<uuid:customer_id>/visits", methods=["POST"])
 @require_role(UserRole.OWNER, UserRole.DOCTOR)
 def record_visit(customer_id: uuid.UUID):
-    """
-    Records a clinical consultation visit and follow-up date.
-    Strictly restricted to OWNER and DOCTOR roles (RECEPTIONIST receives 403).
-    """
+    """Records a clinical consultation visit and follow-up date (OWNER/DOCTOR only)."""
     tenant = resolve_current_tenant()
     if not tenant:
         abort(404)
@@ -476,7 +445,6 @@ def record_visit(customer_id: uuid.UUID):
     patient = db.session.execute(
         select(Customer).filter_by(tenant_id=tenant.id, id=customer_id)
     ).scalar_one_or_none()
-
     if not patient:
         abort(404)
 
@@ -505,7 +473,6 @@ def record_visit(customer_id: uuid.UUID):
     )
     db.session.add(visit)
 
-    # Log audit log for notes modification
     user_id_val = uuid.UUID(session["user_id"]) if session.get("user_id") else None
     audit = AuditLog(
         id=uuid.uuid4(),
@@ -521,10 +488,6 @@ def record_visit(customer_id: uuid.UUID):
     flash("Clinical visit and follow-up scheduled successfully.", "success")
     return redirect(url_for("clinic.patient_profile", customer_id=customer_id, slug=tenant.slug))
 
-
-# =========================================================================
-# Invoice Generator & Pending Balance Tracker
-# =========================================================================
 
 @clinic_bp.route("/invoices")
 @require_role(UserRole.OWNER, UserRole.DOCTOR, UserRole.RECEPTIONIST)
@@ -560,7 +523,7 @@ def invoices_list():
 @clinic_bp.route("/invoices", methods=["POST"])
 @require_role(UserRole.OWNER, UserRole.DOCTOR, UserRole.RECEPTIONIST)
 def create_invoice():
-    """Generates an itemized clinic bill with payment collection and balance tracking."""
+    """Generates an itemized clinic bill and dispatches a WhatsApp receipt link."""
     tenant = resolve_current_tenant()
     if not tenant:
         abort(404)
@@ -570,7 +533,6 @@ def create_invoice():
     payment_mode_str = request.form.get("payment_mode", "CASH")
     paid_paise_str = request.form.get("paid_paise", "0")
 
-    # Itemized lines
     item_descriptions = request.form.getlist("item_desc[]")
     item_amounts = request.form.getlist("item_amount[]")
 
@@ -595,13 +557,11 @@ def create_invoice():
                 pass
 
     if not line_items:
-        # Default consultation line item if empty
         line_items = [{"desc": "Medical Consultation", "amount_paise": 30000}]
         total_paise = 30000
 
     balance_paise = max(0, total_paise - paid_paise)
 
-    # Sequential invoice number
     count = db.session.execute(
         select(func.count(Invoice.id)).filter_by(tenant_id=tenant.id)
     ).scalar() or 0
@@ -622,6 +582,23 @@ def create_invoice():
     db.session.add(invoice)
     db.session.commit()
 
+    if invoice.customer:
+        NotifierService().send_notification(
+            tenant=tenant,
+            recipient_phone=invoice.customer.phone,
+            template_name="invoice_receipt_v1",
+            parameters={
+                "patient_name": invoice.customer.name,
+                "clinic_name": tenant.name,
+                "invoice_number": invoice.invoice_number,
+                "total_inr": invoice.total_paise // 100,
+                "paid_inr": invoice.paid_paise // 100,
+                "balance_inr": invoice.balance_paise // 100,
+                "receipt_url": f"{request.host_url.rstrip('/')}/i/{invoice.id}",
+            },
+            customer_id=invoice.customer.id,
+        )
+
     flash(f"Invoice {invoice_number} created successfully.", "success")
     return redirect(url_for("clinic.invoice_receipt", invoice_id=invoice.id, slug=tenant.slug))
 
@@ -629,7 +606,7 @@ def create_invoice():
 @clinic_bp.route("/invoices/<uuid:invoice_id>/receipt")
 @require_role(UserRole.OWNER, UserRole.DOCTOR, UserRole.RECEPTIONIST)
 def invoice_receipt(invoice_id: uuid.UUID):
-    """Clean, printable A4/A5 PDF-ready invoice receipt view."""
+    """Clean, printable A4/A5 PDF-ready invoice receipt view with WhatsApp share link."""
     tenant = resolve_current_tenant()
     if not tenant:
         abort(404)
@@ -637,20 +614,25 @@ def invoice_receipt(invoice_id: uuid.UUID):
     invoice = db.session.execute(
         select(Invoice).filter_by(tenant_id=tenant.id, id=invoice_id)
     ).scalar_one_or_none()
-
     if not invoice:
         abort(404, description="Invoice not found.")
+
+    public_receipt_url = f"{request.host_url.rstrip('/')}/i/{invoice.id}"
+    wa_text = (
+        f"Hello {invoice.customer.name}, here is your medical receipt *{invoice.invoice_number}* "
+        f"from *{tenant.name}*. Total: ₹{invoice.total_paise // 100} | Paid: ₹{invoice.paid_paise // 100} "
+        f"| Balance: ₹{invoice.balance_paise // 100}. View/Print PDF: {public_receipt_url}"
+    )
+    wa_share_url = f"https://wa.me/91{invoice.customer.phone}?text={urllib.parse.quote(wa_text)}"
 
     return render_template(
         "clinic/invoice_receipt.html",
         tenant=tenant,
         invoice=invoice,
+        public_receipt_url=public_receipt_url,
+        wa_share_url=wa_share_url,
     )
 
-
-# =========================================================================
-# One-Click CSV Data Export & DPDP Compliance
-# =========================================================================
 
 @clinic_bp.route("/export/patients")
 @require_role(UserRole.OWNER, UserRole.DOCTOR, UserRole.RECEPTIONIST)
@@ -660,7 +642,6 @@ def export_patients_csv():
     if not tenant:
         abort(404)
 
-    # Audit log
     user_id_val = uuid.UUID(session["user_id"]) if session.get("user_id") else None
     audit = AuditLog(
         id=uuid.uuid4(),
@@ -679,7 +660,6 @@ def export_patients_csv():
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["Patient ID", "Name", "Phone", "Age", "Gender", "DPDP Consent", "Consent Timestamp", "Registered At"])
-
     for p in patients:
         writer.writerow([
             str(p.id),
@@ -707,7 +687,6 @@ def export_visits_csv():
     if not tenant:
         abort(404)
 
-    # Audit log
     user_id_val = uuid.UUID(session["user_id"]) if session.get("user_id") else None
     audit = AuditLog(
         id=uuid.uuid4(),
@@ -726,7 +705,6 @@ def export_visits_csv():
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["Visit ID", "Date", "Patient Name", "Phone", "Doctor", "Chief Complaint", "Procedures", "Next Follow-up Date"])
-
     for v in visits:
         writer.writerow([
             str(v.id),
@@ -754,7 +732,6 @@ def export_invoices_csv():
     if not tenant:
         abort(404)
 
-    # Audit log
     user_id_val = uuid.UUID(session["user_id"]) if session.get("user_id") else None
     audit = AuditLog(
         id=uuid.uuid4(),
@@ -773,7 +750,6 @@ def export_invoices_csv():
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["Invoice Number", "Date", "Patient Name", "Phone", "Total (INR)", "Paid (INR)", "Balance Due (INR)", "Payment Mode"])
-
     for inv in invoices:
         writer.writerow([
             inv.invoice_number,
