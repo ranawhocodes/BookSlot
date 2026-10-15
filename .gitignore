@@ -1,19 +1,27 @@
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Local SQLite databases & Flask instance folder
+instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# Python bytecode & caches
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
+.pytest_cache/
+.coverage
+htmlcov/
 .Python
 env/
 venv/
 .venv/
-instance/
-.pytest_cache/
-.coverage
-htmlcov/
-*.db
-*.sqlite3
-.env
-.DS_Store
 dist/
 build/
 *.egg-info/
+.DS_Store
+*.so
