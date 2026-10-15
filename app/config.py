@@ -43,9 +43,10 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     TIMEZONE = os.environ.get("TIMEZONE", "Asia/Kolkata")
 
-    # Secure Session Cookie Defaults
+    # Session & Cookie Hardening
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
+    SESSION_COOKIE_SECURE = False
     PERMANENT_SESSION_LIFETIME = timedelta(hours=12)
 
     # Payment & Webhook Config
@@ -84,6 +85,8 @@ class ProductionConfig(Config):
     DEBUG = False
     TESTING = False
     SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
     SQLALCHEMY_DATABASE_URI = normalize_db_url(os.environ.get("DATABASE_URL"))
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,

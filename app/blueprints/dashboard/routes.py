@@ -12,6 +12,7 @@ from flask import (
     flash,
     abort,
     session,
+    g,
 )
 import qrcode
 from sqlalchemy import select
@@ -42,41 +43,66 @@ from app.utils.validators import (
 dashboard_bp = Blueprint("dashboard", __name__)
 
 
-def _resolve_tenant(resource_id: uuid.UUID | None = None) -> Tenant:
-    if resource_id:
-        res = db.session.get(Resource, resource_id)
-        if res and res.tenant:
-            return res.tenant
+@dashboard_bp.before_request
+def require_dashboard_auth():
+    """Enforce session authentication, role authorization, and strict tenant isolation on all dashboard routes."""
+    if request.endpoint in ("dashboard.onboard", "dashboard.onboard_tenant"):
+        return None
 
-    slug = request.args.get("slug") or request.form.get("slug")
-    if slug:
-        tenant = db.session.execute(
-            select(Tenant).filter_by(slug=slug, is_active=True)
-        ).scalar_one_or_none()
-        if tenant:
-            return tenant
+    user_role = session.get("user_role")
+    session_tenant_id = session.get("tenant_id")
+
+    if not user_role or not session_tenant_id:
+        return redirect(url_for("auth.login", next=request.full_path))
+
+    allowed_roles = {
+        UserRole.OWNER.value,
+        UserRole.STAFF.value,
+        UserRole.DOCTOR.value,
+        UserRole.RECEPTIONIST.value,
+    }
+    if user_role not in allowed_roles:
+        abort(403)
+
+    try:
+        session_tenant_uuid = uuid.UUID(str(session_tenant_id))
+    except (ValueError, TypeError):
+        session.clear()
+        return redirect(url_for("auth.login"))
+
+    tenant = db.session.get(Tenant, session_tenant_uuid)
+    if not tenant or not tenant.is_active:
+        session.clear()
+        return redirect(url_for("auth.login"))
+
+    # Prevent cross-tenant access if a slug is passed in query/form params
+    requested_slug = (request.args.get("slug") or request.form.get("slug") or "").strip()
+    if requested_slug and requested_slug != tenant.slug:
+        abort(403, description="Cross-tenant access is forbidden.")
+
+    g.current_tenant = tenant
+
+
+def _resolve_tenant(resource_id: uuid.UUID | None = None) -> Tenant:
+    if hasattr(g, "current_tenant") and g.current_tenant:
+        return g.current_tenant
 
     sess_tid = session.get("tenant_id")
     if sess_tid:
         try:
             tenant = db.session.get(Tenant, uuid.UUID(str(sess_tid)))
-            if tenant:
+            if tenant and tenant.is_active:
+                g.current_tenant = tenant
                 return tenant
-        except ValueError:
+        except (ValueError, TypeError):
             pass
 
-    tenant = db.session.execute(
-        select(Tenant).filter_by(vertical=VerticalType.TURF, is_active=True)
-    ).scalars().first()
-    if not tenant:
-        tenant = db.session.execute(select(Tenant)).scalars().first()
-    if not tenant:
-        abort(404, description="No active tenant found.")
-    return tenant
+    abort(403, description="Tenant context not found or unauthorized.")
 
 
 @dashboard_bp.route("/dashboard", methods=["GET"])
 @dashboard_bp.route("/dashboard/", methods=["GET"])
+@dashboard_bp.route("/dashboard/turf", methods=["GET"], endpoint="turf_dashboard")
 def dashboard_home():
     tenant = _resolve_tenant()
     if tenant.vertical == VerticalType.CLINIC:
@@ -221,8 +247,7 @@ def manual_booking():
         select(Resource).filter_by(id=resource_id, tenant_id=tenant.id)
     ).scalar_one_or_none()
     if not resource:
-        flash("Selected court/resource not found.", "error")
-        return redirect(url_for("dashboard.dashboard_home", slug=tenant.slug, date=slot_date.isoformat()))
+        abort(404, description="Selected court/resource not found or does not belong to this tenant.")
 
     now_utc = datetime.now(timezone.utc)
     existing_conflicts = list(
@@ -365,8 +390,7 @@ def block_slot():
         select(Resource).filter_by(id=resource_id, tenant_id=tenant.id)
     ).scalar_one_or_none()
     if not resource:
-        flash("Resource not found.", "error")
-        return redirect(url_for("dashboard.dashboard_home", slug=tenant.slug, date=slot_date.isoformat()))
+        abort(404, description="Selected court/resource not found or does not belong to this tenant.")
 
     # Find any overlapping CONFIRMED or PENDING_PAYMENT customer bookings in this window
     overlapping_customer_bookings = list(
@@ -493,12 +517,13 @@ def block_slot():
 
 @dashboard_bp.route("/dashboard/unblock-slot/<uuid:booking_id>", methods=["POST"])
 def unblock_slot(booking_id: uuid.UUID):
-    booking = db.session.get(Booking, booking_id)
+    tenant = _resolve_tenant()
+    booking = db.session.execute(
+        select(Booking).filter_by(id=booking_id, tenant_id=tenant.id)
+    ).scalar_one_or_none()
     if not booking:
-        flash("Blocked slot not found.", "error")
-        return redirect(url_for("dashboard.dashboard_home"))
+        abort(404, description="Blocked slot not found or access denied.")
 
-    tenant = booking.tenant
     slot_date_str = booking.slot_date.isoformat()
     db.session.delete(booking)
     db.session.commit()

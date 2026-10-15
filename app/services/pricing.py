@@ -103,7 +103,15 @@ def calculate_booking_quote(
     - tenant: optional tenant to inspect advance_percentage (default 100%)
     """
     if not slot_intervals:
-        raise ValueError("At least one slot interval must be provided.")
+        raise ValueError("At least one slot interval is required.")
+
+    sorted_intervals = sorted(slot_intervals, key=lambda pair: pair[0])
+    for idx, (s_start, s_end) in enumerate(sorted_intervals):
+        if s_end <= s_start:
+            raise ValueError("Slot end_time must be after start_time.")
+        if idx > 0 and sorted_intervals[idx - 1][1] != s_start:
+            raise ValueError("Selected slots must be contiguous back-to-back intervals.")
+    slot_intervals = sorted_intervals
 
     slot_items: List[SlotPriceItem] = []
     total_paise = 0

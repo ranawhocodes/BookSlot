@@ -1,13 +1,18 @@
 import os
 from flask import Flask, jsonify
+from sqlalchemy import text
 from app.config import config_by_name
-from app.extensions import db, migrate
+from app.extensions import db, migrate, csrf
 from app.cli import register_commands
+
+
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 
 def create_app(config_name: str = "default") -> Flask:
     """Flask Application Factory."""
     app = Flask(__name__, instance_relative_config=True)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     # Determine configuration class
     if isinstance(config_name, str):
@@ -28,6 +33,7 @@ def create_app(config_name: str = "default") -> Flask:
     # Initialize extensions
     db.init_app(app)
     migrate.init_app(app, db)
+    csrf.init_app(app)
 
     # Register CLI commands
     register_commands(app)
@@ -38,6 +44,9 @@ def create_app(config_name: str = "default") -> Flask:
     from app.blueprints.webhooks.routes import webhooks_bp
     from app.blueprints.auth.routes import auth_bp
     from app.blueprints.clinic.routes import clinic_bp
+
+    # External webhooks verify HMAC signatures instead of browser CSRF tokens
+    csrf.exempt(webhooks_bp)
 
     app.register_blueprint(public_bp)
     app.register_blueprint(dashboard_bp)
@@ -54,10 +63,18 @@ def create_app(config_name: str = "default") -> Flask:
     # Health check route
     @app.route("/healthz")
     def health_check():
+        try:
+            db.session.execute(text("SELECT 1"))
+            db_status = "ok"
+        except Exception as exc:
+            app.logger.error("Health check DB ping failed: %s", exc)
+            return jsonify({"status": "degraded", "db": "unreachable"}), 503
+
         return jsonify({
             "status": "ok",
+            "db": db_status,
             "service": "SlotEngine",
-            "env": app.config.get("ENV", "production" if not app.config.get("DEBUG") else "development")
+            "env": app.config.get("ENV", "production" if not app.config.get("DEBUG") else "development"),
         }), 200
 
     return app

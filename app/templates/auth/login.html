@@ -13,7 +13,9 @@
             <p class="text-xs text-slate-400">Sign in to manage turf bookings, walk-ins, and desk payments.</p>
         </div>
 
-        <form method="POST" action="/auth/login" class="space-y-4">
+        <form method="POST" action="{{ request.full_path if request.args.get('next') else url_for('auth.login') }}" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
             <div>
                 <label class="block text-xs font-semibold text-slate-400 mb-1" for="phone">Phone Number</label>
                 <input

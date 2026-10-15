@@ -7,7 +7,7 @@
 <div class="min-h-screen w-full bg-[#F4F3EC] text-[#181A1D] p-4 md:p-8">
     <div class="max-w-5xl mx-auto space-y-6">
 
-        <!-- Hidden dataset of all active bookings across all dates for instant conflict checks -->
+        <!-- Hidden dataset of all active bookings across all dates for instant conflict checks (No raw phone PII) -->
         <div id="all-active-bookings-data" class="hidden" aria-hidden="true">
             {% for ab in (all_active_bookings if all_active_bookings is defined else bookings) %}
             {% if ab.status.value in ['CONFIRMED', 'BLOCKED', 'PENDING_PAYMENT', 'IN_CONSULTATION'] %}
@@ -15,9 +15,6 @@
                 data-resource-name="{{ ab.resource.name }}" data-slot-date="{{ ab.slot_date.isoformat() }}"
                 data-start-time="{{ ab.start_time.strftime('%H:%M') }}"
                 data-end-time="{{ ab.end_time.strftime('%H:%M') }}" data-status="{{ ab.status.value }}"
-                data-customer-name="{{ ab.customer.name if ab.customer else '' }}"
-                data-customer-phone="{{ ab.customer.phone if ab.customer else '' }}"
-                data-paid-inr="{{ ab.paid_amount_paise // 100 }}" data-total-inr="{{ ab.total_amount_paise // 100 }}"
                 data-reason="{{ (ab.customer.name if ab.customer else ab.booking_notes) or 'Occupied' }}">
             </span>
             {% endif %}
@@ -211,6 +208,7 @@
                         </div>
                         {% elif b.status.value == 'BLOCKED' %}
                         <form method="POST" action="/dashboard/unblock-slot/{{ b.id }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit"
                                 class="text-xs text-rose-600 hover:bg-rose-50 font-bold px-3.5 py-1.5 rounded-full border border-rose-200">
                                 Unblock
@@ -249,6 +247,7 @@
 
         <form id="manual-booking-form" method="POST" action="/dashboard/manual-booking"
             onsubmit="return validateManualBookingSlot(event)" class="space-y-3.5">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div>
                 <label class="block text-xs font-bold text-stone-600 mb-1" for="manual-res-id">Select Court /
                     Turf</label>
@@ -361,6 +360,7 @@
 
         <form id="block-slot-form" method="POST" action="/dashboard/block-slot"
             onsubmit="return validateBlockSlotForm(event)" class="space-y-3.5">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="force_cancel_and_block" id="force-cancel-and-block" value="false">
 
             <div>

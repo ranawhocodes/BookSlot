@@ -33,7 +33,7 @@ from app.models import (
 from app.middleware.tenant import resolve_current_tenant
 from app.middleware.auth import require_role
 from app.services.notifier import NotifierService
-from app.utils.validators import sanitize_and_validate_name, sanitize_and_validate_phone
+from app.utils.validators import sanitize_and_validate_name, sanitize_and_validate_phone, sanitize_csv_row
 
 clinic_bp = Blueprint("clinic", __name__, url_prefix="/dashboard/clinic")
 
@@ -215,14 +215,7 @@ def issue_walkin_token():
         db.session.add(customer)
     db.session.flush()
 
-    max_token = db.session.execute(
-        select(func.max(Booking.token_number)).filter(
-            Booking.tenant_id == tenant.id,
-            Booking.resource_id == doctor_resource_id,
-            Booking.slot_date == slot_date,
-        )
-    ).scalar() or 0
-    token_number = max_token + 1
+    token_number = Booking.generate_next_walkin_token(tenant.id, doctor.id, slot_date)
 
     start_t, end_t = _find_next_walkin_slot(tenant.id, doctor, slot_date)
     booking = Booking(
@@ -562,10 +555,7 @@ def create_invoice():
 
     balance_paise = max(0, total_paise - paid_paise)
 
-    count = db.session.execute(
-        select(func.count(Invoice.id)).filter_by(tenant_id=tenant.id)
-    ).scalar() or 0
-    invoice_number = f"INV-SRI-{date.today().strftime('%y%m')}-{count + 1:04d}"
+    invoice_number = Invoice.generate_next_invoice_number(tenant.id)
 
     invoice = Invoice(
         id=uuid.uuid4(),
@@ -659,23 +649,28 @@ def export_patients_csv():
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Patient ID", "Name", "Phone", "Age", "Gender", "DPDP Consent", "Consent Timestamp", "Registered At"])
+    writer.writerow(["Patient ID", "Name", "Phone", "Age", "Gender", "DPDP Consent", "Consent Timestamp", "Notes"])
     for p in patients:
-        writer.writerow([
-            str(p.id),
-            p.name,
-            p.phone,
-            p.age or "",
-            p.gender or "",
-            "YES" if p.dpdp_consent_given else "NO",
-            p.dpdp_consent_at.isoformat() if p.dpdp_consent_at else "",
-            p.created_at.isoformat() if p.created_at else "",
-        ])
+        writer.writerow(
+            sanitize_csv_row([
+                str(p.id),
+                p.name,
+                p.phone,
+                p.age if p.age is not None else "",
+                p.gender or "",
+                "Yes" if p.dpdp_consent_given else "No",
+                p.dpdp_consent_at.isoformat() if p.dpdp_consent_at else "",
+                p.notes or "",
+            ])
+        )
 
     return Response(
         output.getvalue(),
         mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={tenant.slug}_patients.csv"}
+        headers={
+            "Content-Disposition": f"attachment; filename={tenant.slug}_patients.csv",
+            "X-Content-Type-Options": "nosniff",
+        }
     )
 
 
@@ -704,23 +699,29 @@ def export_visits_csv():
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Visit ID", "Date", "Patient Name", "Phone", "Doctor", "Chief Complaint", "Procedures", "Next Follow-up Date"])
+    writer.writerow(["Visit ID", "Date", "Patient Name", "Phone", "Doctor", "Chief Complaint", "Clinical Notes", "Procedures", "Next Follow-up Date"])
     for v in visits:
-        writer.writerow([
-            str(v.id),
-            v.created_at.strftime('%Y-%m-%d %H:%M') if v.created_at else "",
-            v.customer.name,
-            v.customer.phone,
-            v.doctor_resource.name if v.doctor_resource else "",
-            v.chief_complaint or "",
-            v.procedures_done or "",
-            v.next_followup_date.isoformat() if v.next_followup_date else "",
-        ])
+        writer.writerow(
+            sanitize_csv_row([
+                str(v.id),
+                v.created_at.strftime('%Y-%m-%d %H:%M') if v.created_at else "",
+                v.customer.name,
+                v.customer.phone,
+                v.doctor_resource.name if v.doctor_resource else "",
+                v.chief_complaint or "",
+                v.clinical_notes or "",
+                v.procedures_done or "",
+                v.next_followup_date.isoformat() if v.next_followup_date else "",
+            ])
+        )
 
     return Response(
         output.getvalue(),
         mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={tenant.slug}_visits.csv"}
+        headers={
+            "Content-Disposition": f"attachment; filename={tenant.slug}_visits.csv",
+            "X-Content-Type-Options": "nosniff",
+        }
     )
 
 
@@ -751,19 +752,24 @@ def export_invoices_csv():
     writer = csv.writer(output)
     writer.writerow(["Invoice Number", "Date", "Patient Name", "Phone", "Total (INR)", "Paid (INR)", "Balance Due (INR)", "Payment Mode"])
     for inv in invoices:
-        writer.writerow([
-            inv.invoice_number,
-            inv.created_at.strftime('%Y-%m-%d %H:%M') if inv.created_at else "",
-            inv.customer.name,
-            inv.customer.phone,
-            f"{inv.total_paise / 100:.2f}",
-            f"{inv.paid_paise / 100:.2f}",
-            f"{inv.balance_paise / 100:.2f}",
-            inv.payment_mode.value if inv.payment_mode else "",
-        ])
+        writer.writerow(
+            sanitize_csv_row([
+                inv.invoice_number,
+                inv.created_at.strftime('%Y-%m-%d %H:%M') if inv.created_at else "",
+                inv.customer.name,
+                inv.customer.phone,
+                f"{inv.total_paise / 100:.2f}",
+                f"{inv.paid_paise / 100:.2f}",
+                f"{inv.balance_paise / 100:.2f}",
+                inv.payment_mode.value if inv.payment_mode else "",
+            ])
+        )
 
     return Response(
         output.getvalue(),
         mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={tenant.slug}_invoices.csv"}
+        headers={
+            "Content-Disposition": f"attachment; filename={tenant.slug}_invoices.csv",
+            "X-Content-Type-Options": "nosniff",
+        }
     )

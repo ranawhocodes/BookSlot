@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}SlotEngine | Modern Booking & Queues{% endblock %}</title>
 
     <!-- Tailwind CSS CDN -->
@@ -81,7 +82,8 @@
     {% block head %}{% endblock %}
 </head>
 
-<body class="h-full flex flex-col bg-[#F4F3EC] text-[#181A1D]">
+<body class="h-full flex flex-col bg-[#F4F3EC] text-[#181A1D]"
+      hx-headers='{"X-CSRFToken": "{{ csrf_token() }}"}'>
     <!-- Flash Notifications -->
     {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
@@ -106,7 +108,25 @@
         {% block content %}{% endblock %}
     </main>
 
+    <script>
+        // Ensure every standard POST form includes csrf_token even after dynamic DOM updates
+        function injectCsrfTokens() {
+            const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+            if (!tokenMeta) return;
+            const token = tokenMeta.getAttribute('content');
+            document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(form => {
+                if (!form.querySelector('input[name="csrf_token"]')) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'csrf_token';
+                    input.value = token;
+                    form.prepend(input);
+                }
+            });
+        }
+        document.addEventListener('DOMContentLoaded', injectCsrfTokens);
+        document.addEventListener('htmx:afterSwap', injectCsrfTokens);
+    </script>
     {% block scripts %}{% endblock %}
 </body>
-
 </html>

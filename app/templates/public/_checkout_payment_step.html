@@ -44,6 +44,7 @@
     {% if order_data.mode == 'RAZORPAY_LIVE' and order_data.key_id %}
     <!-- Live Razorpay Standard Checkout Modal Trigger -->
     <form id="rzp-verify-form" hx-post="/b/{{ tenant.slug }}/verify-payment" hx-target="#drawer-content">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="booking_id" value="{{ booking.id }}">
         <input type="hidden" name="razorpay_order_id" id="rzp-order-id" value="{{ order_data.order_id }}">
         <input type="hidden" name="razorpay_payment_id" id="rzp-payment-id">
@@ -61,15 +62,15 @@
     <script>
         function launchRazorpayModal() {
             const options = {
-                key: "{{ order_data.key_id }}",
-                amount: "{{ payable_paise }}",
+                key: {{ order_data.key_id | tojson }},
+                amount: {{ payable_paise | string | tojson }},
                 currency: "INR",
-                name: "{{ tenant.name }}",
-                description: "{{ resource.name }} ({{ booking.slot_date.strftime('%d %b') }})",
-                order_id: "{{ order_data.order_id }}",
+                name: {{ tenant.name | tojson }},
+                description: {{ (resource.name ~ " (" ~ booking.slot_date.strftime('%d %b') ~ ")") | tojson }},
+                order_id: {{ order_data.order_id | tojson }},
                 prefill: {
-                    name: "{{ customer.name }}",
-                    contact: "+91{{ customer.phone }}"
+                    name: {{ customer.name | tojson }},
+                    contact: {{ ("+91" ~ customer.phone) | tojson }}
                 },
                 theme: { color: "#5E9E47" },
                 handler: function (response) {
@@ -129,6 +130,7 @@
     {% if config.DEBUG or config.TESTING %}
     <!-- Sandbox / Development Mock Payment Form (Strictly disabled in production) -->
     <form hx-post="/b/{{ tenant.slug }}/pay-mock" hx-target="#drawer-content" class="space-y-2.5 pt-2 border-t border-dashed border-stone-300">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="booking_id" value="{{ booking.id }}">
         <div>
             <input type="text" name="utr_number" title="Optional 12-digit UPI Reference or UTR Number"

@@ -191,6 +191,9 @@ def create_slot_hold(
     now: Optional[datetime] = None,
 ) -> Booking:
     """Atomically checks for overlapping holds/bookings and creates a 7-minute hold."""
+    if end_time <= start_time:
+        raise ValueError("end_time must be strictly after start_time.")
+
     effective_now = now or datetime.now(timezone.utc)
     if effective_now.tzinfo is None:
         effective_now = effective_now.replace(tzinfo=timezone.utc)
@@ -201,7 +204,17 @@ def create_slot_hold(
         if slot_date < now_ist.date() or (slot_date == now_ist.date() and start_time <= now_ist.time()):
             raise SlotUnavailableError("Cannot book a time slot that has already passed.")
 
-    overlapping_rows = list(
+    # 1. Lock parent Resource row to serialize concurrent multi-slot range checks
+    resource = db.session.execute(
+        select(Resource)
+        .filter_by(id=resource_id, tenant_id=tenant_id)
+        .with_for_update()
+    ).scalar_one_or_none()
+    if not resource:
+        raise ValueError("Resource not found for tenant.")
+
+    # 2. Fetch and lock all overlapping bookings for this resource and date
+    overlapping_bookings = list(
         db.session.execute(
             select(Booking)
             .filter(
@@ -215,20 +228,25 @@ def create_slot_hold(
         ).scalars().all()
     )
 
-    for b in overlapping_rows:
-        if b.status in (BookingStatus.CONFIRMED, BookingStatus.BLOCKED, BookingStatus.IN_CONSULTATION):
-            if b.status == BookingStatus.BLOCKED and b.booking_notes:
-                raise SlotUnavailableError(f"Slot is blocked ({b.booking_notes}).")
-            raise SlotUnavailableError("This slot is already booked or blocked.")
-        if b.status == BookingStatus.PENDING_PAYMENT:
-            locked_until = b.locked_until
+    for existing in overlapping_bookings:
+        if existing.status in (
+            BookingStatus.CONFIRMED,
+            BookingStatus.BLOCKED,
+            BookingStatus.IN_CONSULTATION,
+            BookingStatus.COMPLETED,
+        ):
+            raise SlotUnavailableError("Slot is already booked or blocked.")
+
+        if existing.status == BookingStatus.PENDING_PAYMENT:
+            locked_until = existing.locked_until
             if locked_until is not None:
                 if locked_until.tzinfo is None:
                     locked_until = locked_until.replace(tzinfo=timezone.utc)
                 if locked_until > effective_now:
-                    raise SlotUnavailableError("This slot is temporarily held by another customer.")
-            b.status = BookingStatus.EXPIRED
-            b.locked_until = None
+                    raise SlotUnavailableError("Slot is temporarily held by another customer.")
+            # Transition expired hold so it no longer appears pending
+            existing.status = BookingStatus.EXPIRED
+            existing.locked_until = None
 
     hold = Booking(
         id=uuid.uuid4(),

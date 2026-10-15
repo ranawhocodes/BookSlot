@@ -284,6 +284,7 @@
 
             <div id="drawer-content">
                 <form id="hold-form" hx-post="/b/{{ tenant.slug }}/hold" hx-target="#drawer-content" class="space-y-4">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="resource_id" id="form-resource-id">
                     <input type="hidden" name="date" id="form-date">
                     <input type="hidden" name="start_time" id="form-start-time">
@@ -446,12 +447,18 @@
     function selectResource(resId, resName, baseRateInr) {
         activeResourceId = resId;
         activeResourceName = resName;
-        baseSlotPriceRupees = parseInt(baseRateInr, 10) || baseSlotPriceRupees;
+        const parsedRate = parseInt(baseRateInr, 10);
+        baseSlotPriceRupees = (!Number.isNaN(parsedRate) && parsedRate > 0) ? parsedRate : baseSlotPriceRupees;
         document.getElementById('current-resource-id').value = resId;
         document.getElementById('current-resource-name').value = resName;
         document.getElementById('hero-resource-title').textContent = resName;
-        if (baseRateInr) {
-            document.getElementById('hero-base-price').innerHTML = `₹${baseRateInr}<span class="text-xs font-semibold text-stone-500">/hr</span>`;
+        if (!Number.isNaN(parsedRate) && parsedRate > 0) {
+            const priceEl = document.getElementById('hero-base-price');
+            priceEl.textContent = `₹${parsedRate}`;
+            const unitSpan = document.createElement('span');
+            unitSpan.className = 'text-xs font-semibold text-stone-500';
+            unitSpan.textContent = isClinicVertical ? '/visit' : '/hr';
+            priceEl.appendChild(unitSpan);
         }
 
         const heroImg = document.getElementById('court-hero-image');
@@ -591,6 +598,17 @@
         htmx.ajax('GET', url, { target: '#slots-grid', swap: 'innerHTML' });
     }
 
+    function areSelectedSlotsContiguous() {
+        if (selectedSlots.length <= 1) return true;
+        const sorted = [...selectedSlots].sort((a, b) => a.startTime.localeCompare(b.startTime));
+        for (let i = 0; i < sorted.length - 1; i++) {
+            if (sorted[i].endTime !== sorted[i + 1].startTime) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     function proceedWithSelectedSlots() {
         const inputEl = document.getElementById('player-count-input');
         if (inputEl && !handlePlayerCountInput(inputEl.value)) {
@@ -598,12 +616,19 @@
             inputEl.focus();
             return;
         }
-
         if (selectedSlots.length === 0) {
             document.getElementById('slots-container').scrollIntoView({ behavior: 'smooth' });
             return;
         }
-
+        if (!areSelectedSlotsContiguous()) {
+            const warningEl = document.getElementById('player-count-warning');
+            if (warningEl) {
+                warningEl.textContent = "Please select consecutive back-to-back time slots for a single booking, or book non-adjacent hours separately.";
+                warningEl.classList.remove('hidden');
+                warningEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            return;
+        }
         openCheckoutDrawer();
     }
 

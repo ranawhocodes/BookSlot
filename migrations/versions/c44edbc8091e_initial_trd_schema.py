@@ -129,7 +129,7 @@ def upgrade():
     sa.Column('slot_date', sa.Date(), nullable=False),
     sa.Column('start_time', sa.Time(), nullable=False),
     sa.Column('end_time', sa.Time(), nullable=False),
-    sa.Column('status', sa.Enum('PENDING_PAYMENT', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW', 'BLOCKED', 'EXPIRED', name='booking_status', native_enum=False), nullable=False),
+    sa.Column('status', sa.Enum('PENDING_PAYMENT', 'CONFIRMED', 'IN_CONSULTATION', 'COMPLETED', 'CANCELLED', 'NO_SHOW', 'BLOCKED', 'EXPIRED', name='booking_status', native_enum=False), nullable=False),
     sa.Column('locked_until', sa.DateTime(timezone=True), nullable=True),
     sa.Column('is_walkin', sa.Boolean(), nullable=False),
     sa.Column('token_number', sa.Integer(), nullable=True),

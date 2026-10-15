@@ -377,3 +377,156 @@ def test_csv_data_exports_and_audit_logging(app, client, clinic_setup):
         db.select(AuditLog).filter_by(tenant_id=tenant.id, action="EXPORT_DATA")
     ).scalars().all()
     assert len(export_audits) >= 2
+
+
+def test_csv_export_neutralizes_formula_injection(app, client, clinic_setup):
+    """CSV exports prefix dangerous formula characters (=, +, -, @) with a single quote."""
+    tenant = clinic_setup["tenant"]
+    doctor = clinic_setup["doctor"]
+
+    with client.session_transaction() as sess:
+        sess["user_role"] = UserRole.DOCTOR.value
+        sess["tenant_id"] = str(tenant.id)
+
+    # 1. Create a patient with a formula injection payload in notes
+    malicious_patient = Customer(
+        id=uuid.uuid4(),
+        tenant_id=tenant.id,
+        name="Formula Tester",
+        phone="9840111222",
+        dpdp_consent_given=True,
+        notes="=CMD|' /C calc'!A0",
+    )
+    db.session.add(malicious_patient)
+    db.session.flush()
+
+    # 2. Create a visit with formula payloads in chief_complaint and clinical_notes
+    visit = ClinicVisit(
+        id=uuid.uuid4(),
+        tenant_id=tenant.id,
+        customer_id=malicious_patient.id,
+        doctor_resource_id=doctor.id,
+        chief_complaint="+HYPERLINK(\"http://evil.example\")",
+        clinical_notes="@SUM(1+1)*cmd|' /C calc'!A0",
+        procedures_done="-2+3+cmd|' /C calc'!A0",
+    )
+    db.session.add(visit)
+    db.session.commit()
+
+    # 3. Export patients CSV and verify payload is prefixed with a single quote
+    p_resp = client.get(f"/dashboard/clinic/export/patients?slug={tenant.slug}")
+    assert p_resp.status_code == 200
+    p_csv = p_resp.get_data(as_text=True)
+    assert "'=CMD|' /C calc'!A0" in p_csv
+
+    # 4. Export visits CSV and verify all formula payloads are prefixed with a single quote
+    v_resp = client.get(f"/dashboard/clinic/export/visits?slug={tenant.slug}")
+    assert v_resp.status_code == 200
+    v_csv = v_resp.get_data(as_text=True)
+    assert "'+HYPERLINK" in v_csv
+    assert "'@SUM" in v_csv
+    assert "'-2+3" in v_csv
+
+
+def test_production_config_enforces_secure_session_cookies():
+    """ProductionConfig must enforce HttpOnly, Secure, and SameSite=Lax on session cookies."""
+    from app.config import Config, ProductionConfig
+
+    assert Config.SESSION_COOKIE_HTTPONLY is True
+    assert Config.SESSION_COOKIE_SAMESITE == "Lax"
+    assert ProductionConfig.SESSION_COOKIE_SECURE is True
+    assert ProductionConfig.SESSION_COOKIE_HTTPONLY is True
+    assert ProductionConfig.SESSION_COOKIE_SAMESITE == "Lax"
+
+
+def test_healthz_endpoint_healthy_and_degraded(client, monkeypatch):
+    """GET /healthz returns 200 when DB ping succeeds, and 503 degraded when DB ping fails."""
+    # 1. Healthy check
+    resp = client.get("/healthz")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["status"] == "ok"
+    assert data["db"] == "ok"
+    assert data["service"] == "SlotEngine"
+
+    # 2. Simulate DB failure
+    def mock_failing_execute(*args, **kwargs):
+        raise RuntimeError("Simulated DB connection failure")
+
+    monkeypatch.setattr(db.session, "execute", mock_failing_execute)
+    degraded_resp = client.get("/healthz")
+    assert degraded_resp.status_code == 503
+    deg_data = degraded_resp.get_json()
+    assert deg_data["status"] == "degraded"
+    assert deg_data["db"] == "unreachable"
+
+
+def test_walkin_token_and_invoice_sequential_locking(clinic_setup, db_session):
+    """Verifies row-locking helpers and uniqueness constraints on walk-in tokens and invoices."""
+    from sqlalchemy.exc import IntegrityError
+
+    tenant = clinic_setup["tenant"]
+    doctor = clinic_setup["doctor"]
+    customer = clinic_setup["patient"]
+    slot_date = date.today()
+
+    # 1. Generate sequential walk-in tokens
+    t1 = Booking.generate_next_walkin_token(tenant.id, doctor.id, slot_date)
+    assert t1 == 1
+
+    b1 = Booking(
+        id=uuid.uuid4(),
+        tenant_id=tenant.id,
+        resource_id=doctor.id,
+        customer_id=customer.id,
+        slot_date=slot_date,
+        start_time=time(10, 0),
+        end_time=time(10, 20),
+        status=BookingStatus.CONFIRMED,
+        token_number=t1,
+    )
+    db_session.add(b1)
+    db_session.commit()
+
+    t2 = Booking.generate_next_walkin_token(tenant.id, doctor.id, slot_date)
+    assert t2 == 2
+
+    # 2. Ensure partial unique index blocks duplicate token_number on same doctor and date
+    duplicate_b = Booking(
+        id=uuid.uuid4(),
+        tenant_id=tenant.id,
+        resource_id=doctor.id,
+        customer_id=customer.id,
+        slot_date=slot_date,
+        start_time=time(10, 20),
+        end_time=time(10, 40),
+        status=BookingStatus.CONFIRMED,
+        token_number=1,  # Duplicate of b1!
+    )
+    db_session.add(duplicate_b)
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+    # 3. Generate sequential invoice numbers with Tenant locking
+    inv_num_1 = Invoice.generate_next_invoice_number(tenant.id)
+    assert inv_num_1.startswith("INV-SRI-")
+    assert inv_num_1.endswith("-0001")
+
+    inv1 = Invoice(
+        id=uuid.uuid4(),
+        tenant_id=tenant.id,
+        customer_id=customer.id,
+        invoice_number=inv_num_1,
+        line_items=[{"desc": "Consultation", "amount_paise": 50000}],
+        total_paise=50000,
+        paid_paise=50000,
+        balance_paise=0,
+    )
+    db_session.add(inv1)
+    db_session.commit()
+
+    inv_num_2 = Invoice.generate_next_invoice_number(tenant.id)
+    assert inv_num_2.startswith("INV-SRI-")
+    assert inv_num_2.endswith("-0002")
+

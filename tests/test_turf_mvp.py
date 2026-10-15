@@ -12,6 +12,8 @@ from app.models import (
     Payment,
     PaymentMode,
     Customer,
+    UserRole,
+    VerticalType,
 )
 from app.extensions import db
 
@@ -190,6 +192,10 @@ def test_dashboard_metrics_and_manual_phone_booking(app, client, turf_setup):
     tenant = turf_setup["tenant"]
     football = turf_setup["football"]
 
+    with client.session_transaction() as sess:
+        sess["user_role"] = UserRole.OWNER.value
+        sess["tenant_id"] = str(tenant.id)
+
     # 1. Load Dashboard
     dash_resp = client.get(f"/dashboard/?slug={tenant.slug}")
     assert dash_resp.status_code == 200
@@ -221,6 +227,10 @@ def test_slot_blockout_and_unblock(app, client, turf_setup):
     """Owner blocks a slot for floodlight maintenance and subsequently unblocks it."""
     tenant = turf_setup["tenant"]
     football = turf_setup["football"]
+
+    with client.session_transaction() as sess:
+        sess["user_role"] = UserRole.OWNER.value
+        sess["tenant_id"] = str(tenant.id)
 
     # 1. Block slot
     block_resp = client.post(
@@ -258,12 +268,49 @@ def test_slot_blockout_and_unblock(app, client, turf_setup):
 def test_venue_qr_poster_page(app, client, turf_setup):
     """GET /dashboard/qr-poster generates printable venue poster with high-contrast QR code."""
     tenant = turf_setup["tenant"]
+
+    with client.session_transaction() as sess:
+        sess["user_role"] = UserRole.OWNER.value
+        sess["tenant_id"] = str(tenant.id)
+
     resp = client.get(f"/dashboard/qr-poster?slug={tenant.slug}")
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
     assert "Printable QR Poster" in html
     assert "data:image/png;base64," in html
     assert "Scan with any UPI / Camera App" in html
+
+
+def test_dashboard_requires_auth_and_enforces_tenant_isolation(app, client, turf_setup, db_session):
+    """Unauthenticated requests to /dashboard/* redirect to login; cross-tenant access returns 403."""
+    tenant_a = turf_setup["tenant"]
+
+    # 1. Unauthenticated request must redirect (302) to login
+    unauth_get = client.get(f"/dashboard/?slug={tenant_a.slug}")
+    assert unauth_get.status_code == 302
+    assert "/login" in unauth_get.headers.get("Location", "")
+
+    unauth_post = client.post("/dashboard/block-slot", data={})
+    assert unauth_post.status_code == 302
+
+    # 2. Create rival Tenant B and verify Tenant B owner cannot access Tenant A dashboard
+    tenant_b = Tenant(
+        id=uuid.uuid4(),
+        slug="rival-arena",
+        name="Rival Arena",
+        vertical=VerticalType.TURF,
+        phone="9876543999",
+        advance_percentage=30,
+    )
+    db_session.add(tenant_b)
+    db_session.commit()
+
+    with client.session_transaction() as sess:
+        sess["user_role"] = UserRole.OWNER.value
+        sess["tenant_id"] = str(tenant_b.id)
+
+    cross_tenant_resp = client.get(f"/dashboard/?slug={tenant_a.slug}")
+    assert cross_tenant_resp.status_code == 403
 
 
 def test_pay_mock_ignores_tampered_amount_and_blocks_production(app, client, turf_setup):
@@ -338,3 +385,122 @@ def test_pay_mock_ignores_tampered_amount_and_blocks_production(app, client, tur
         data={"booking_id": "not-a-uuid"},
     )
     assert invalid_resp.status_code == 400
+
+
+def test_csrf_protection_enforced_on_post_and_exempt_on_webhooks(app, client, turf_setup):
+    """When WTF_CSRF_ENABLED is True, POST forms without CSRF token return 400, while webhooks remain exempt."""
+    tenant = turf_setup["tenant"]
+    football = turf_setup["football"]
+
+    app.config["WTF_CSRF_ENABLED"] = True
+    try:
+        # 1. Public hold POST without CSRF token must be rejected (400)
+        resp_no_csrf = client.post(
+            f"/b/{tenant.slug}/hold",
+            data={
+                "resource_id": str(football.id),
+                "date": "2026-10-14",
+                "start_time": "18:00",
+                "end_time": "19:00",
+                "name": "Csrf Tester",
+                "phone": "9876543210",
+                "dpdp_consent": "on",
+            },
+        )
+        assert resp_no_csrf.status_code == 400
+
+        # 2. Webhook POST without CSRF token must NOT fail with CSRF error (exempted, fails with HMAC 400 instead)
+        webhook_resp = client.post(
+            "/webhooks/razorpay",
+            data=b'{"event": "payment.captured"}',
+            headers={"X-Razorpay-Signature": "invalid", "Content-Type": "application/json"},
+        )
+        assert webhook_resp.status_code == 400
+        assert "signature" in webhook_resp.get_data(as_text=True).lower()
+    finally:
+        app.config["WTF_CSRF_ENABLED"] = False
+
+
+def test_rate_limiter_resists_xff_spoofing(app, client, turf_setup):
+    """Rate limiter uses the trusted right-most proxy hop and blocks X-Forwarded-For spoofing."""
+    from app.utils.validators import _RATE_LIMIT_STORE
+
+    tenant = turf_setup["tenant"]
+    football = turf_setup["football"]
+    _RATE_LIMIT_STORE.clear()
+    app.config["ENFORCE_RATE_LIMIT_IN_TESTS"] = True
+
+    try:
+        # Send 5 requests with different spoofed left-most IPs but the same real proxy IP (203.0.113.99)
+        for i in range(5):
+            resp = client.post(
+                f"/b/{tenant.slug}/hold",
+                headers={"X-Forwarded-For": f"10.0.0.{i}, 203.0.113.99"},
+                data={
+                    "resource_id": str(football.id),
+                    "date": "2026-10-14",
+                    "start_time": "18:00",
+                    "end_time": "19:00",
+                    "name": "Rate Test",
+                    "phone": "9876543210",
+                    "dpdp_consent": "false",  # fails validation fast (400), but still counts against rate limit
+                },
+            )
+            assert resp.status_code == 400
+
+        # 6th request with a brand-new spoofed left-most IP must be blocked with 429 Too Many Requests
+        blocked_resp = client.post(
+            f"/b/{tenant.slug}/hold",
+            headers={"X-Forwarded-For": "192.168.1.250, 203.0.113.99"},
+            data={},
+        )
+        assert blocked_resp.status_code == 429
+    finally:
+        app.config["ENFORCE_RATE_LIMIT_IN_TESTS"] = False
+        _RATE_LIMIT_STORE.clear()
+
+
+def test_login_redirect_and_switch_tenant(client, turf_setup, db_session):
+    """POST /auth/login successfully authenticates staff and redirects to dashboard without BuildError."""
+    from app.models import User
+
+    tenant = turf_setup["tenant"]
+    owner = User(
+        id=uuid.uuid4(),
+        tenant_id=tenant.id,
+        name="Test Owner",
+        phone="9876500001",
+        email="owner@test.com",
+        role=UserRole.OWNER,
+    )
+    owner.set_password("password123")
+    db_session.add(owner)
+    db_session.commit()
+
+    # 1. Successful login without next param redirects to dashboard
+    login_resp = client.post(
+        "/auth/login",
+        data={"phone": owner.phone, "password": "password123"},
+        follow_redirects=False,
+    )
+    assert login_resp.status_code == 302
+    assert "/dashboard" in login_resp.headers["Location"]
+
+    # 2. Login with next param redirects to specified URL
+    login_next_resp = client.post(
+        "/auth/login?next=/dashboard/?slug=" + tenant.slug,
+        data={"phone": owner.phone, "password": "password123"},
+        follow_redirects=False,
+    )
+    assert login_next_resp.status_code == 302
+    assert f"/dashboard/?slug={tenant.slug}" in login_next_resp.headers["Location"]
+
+    # 3. switch-tenant endpoint successfully sets session and redirects
+    switch_resp = client.get(
+        f"/auth/switch-tenant/{tenant.slug}",
+        follow_redirects=False,
+    )
+    assert switch_resp.status_code == 302
+    assert f"/dashboard/?slug={tenant.slug}" in switch_resp.headers["Location"]
+
+

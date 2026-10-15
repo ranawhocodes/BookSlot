@@ -155,6 +155,7 @@
         </div>
 
         <form method="POST" action="/dashboard/clinic/queue/walkin-token" class="space-y-3.5">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="slug" value="{{ tenant.slug }}">
             <input type="hidden" name="slot_date" value="{{ selected_date.isoformat() }}">
 

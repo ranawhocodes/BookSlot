@@ -65,6 +65,7 @@
                     {% if b.status.value == 'CONFIRMED' %}
                         <!-- Waiting -> Call In -->
                         <form hx-post="/dashboard/clinic/queue/{{ b.id }}/status" hx-target="#queue-table-container">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="slug" value="{{ tenant.slug }}">
                             <input type="hidden" name="status" value="IN_CONSULTATION">
                             <button
@@ -77,6 +78,7 @@
                         </form>
 
                         <form hx-post="/dashboard/clinic/queue/{{ b.id }}/status" hx-target="#queue-table-container">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="slug" value="{{ tenant.slug }}">
                             <input type="hidden" name="status" value="NO_SHOW">
                             <button
@@ -89,6 +91,7 @@
                     {% elif b.status.value == 'IN_CONSULTATION' %}
                         <!-- In Consultation -> Complete -->
                         <form hx-post="/dashboard/clinic/queue/{{ b.id }}/status" hx-target="#queue-table-container">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="slug" value="{{ tenant.slug }}">
                             <input type="hidden" name="status" value="COMPLETED">
                             <button

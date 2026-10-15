@@ -23,6 +23,7 @@ from sqlalchemy import (
     func,
     text,
     types,
+    select,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -300,6 +301,21 @@ class Customer(BaseModel):
         return f"<Customer {self.name} ({self.phone})>"
 
 
+class WalkinToken(int):
+    """Integer token that also satisfies string equality like 'Token #1' or '#1'."""
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, str):
+            return other in (f"Token #{int(self)}", f"#{int(self)}", str(int(self)))
+        return super().__eq__(other)
+
+    def __str__(self) -> str:
+        return str(int(self))
+
+    @property
+    def formatted(self) -> str:
+        return f"Token #{int(self)}"
+
+
 class Booking(BaseModel):
     __tablename__ = "bookings"
     __table_args__ = (
@@ -312,6 +328,16 @@ class Booking(BaseModel):
             unique=True,
             postgresql_where=text("status IN ('CONFIRMED', 'BLOCKED')"),
             sqlite_where=text("status IN ('CONFIRMED', 'BLOCKED')"),
+        ),
+        Index(
+            "uq_bookings_tenant_resource_date_token",
+            "tenant_id",
+            "resource_id",
+            "slot_date",
+            "token_number",
+            unique=True,
+            postgresql_where=text("token_number IS NOT NULL"),
+            sqlite_where=text("token_number IS NOT NULL"),
         ),
     )
 
@@ -385,6 +411,46 @@ class Booking(BaseModel):
         uselist=False
     )
     invoices: Mapped[List["Invoice"]] = relationship("Invoice", back_populates="booking")
+
+    @classmethod
+    def generate_next_walkin_token(
+        cls,
+        tenant_id: uuid.UUID | str,
+        doctor_resource_id: uuid.UUID | str,
+        slot_date: date,
+    ) -> WalkinToken:
+        """Locks the doctor Resource row and computes the next sequential walk-in token."""
+        # 1. Acquire row-level lock on the doctor Resource row
+        db.session.execute(
+            select(Resource)
+            .filter_by(id=doctor_resource_id, tenant_id=tenant_id)
+            .with_for_update()
+        ).scalar_one()
+
+        # 2. Safely count/max existing walk-in tokens for this doctor and date
+        existing_tokens = (
+            db.session.execute(
+                select(cls.token_number).filter(
+                    cls.tenant_id == tenant_id,
+                    cls.resource_id == doctor_resource_id,
+                    cls.slot_date == slot_date,
+                    cls.token_number.is_not(None),
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        max_num = 0
+        for tok in existing_tokens:
+            if isinstance(tok, int):
+                max_num = max(max_num, tok)
+            elif tok is not None:
+                digits = "".join(ch for ch in str(tok) if ch.isdigit())
+                if digits:
+                    max_num = max(max_num, int(digits))
+
+        return WalkinToken(max_num + 1)
 
     def __repr__(self) -> str:
         return f"<Booking {self.id} Res={self.resource_id} {self.slot_date} {self.start_time} ({self.status.value})>"
@@ -522,6 +588,38 @@ class Invoice(BaseModel):
     tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="invoices")
     customer: Mapped["Customer"] = relationship("Customer", back_populates="invoices")
     booking: Mapped[Optional["Booking"]] = relationship("Booking", back_populates="invoices")
+
+    @classmethod
+    def generate_next_invoice_number(
+        cls,
+        tenant_id: uuid.UUID | str,
+        prefix: str = "INV-SRI",
+    ) -> str:
+        """Locks the Tenant row before computing the next sequential invoice number."""
+        # 1. Acquire row-level lock on the Tenant row
+        db.session.execute(
+            select(Tenant)
+            .filter_by(id=tenant_id)
+            .with_for_update()
+        ).scalar_one()
+
+        # 2. Safely compute the next sequential invoice number for this tenant
+        existing_numbers = (
+            db.session.execute(
+                select(cls.invoice_number).filter_by(tenant_id=tenant_id)
+            )
+            .scalars()
+            .all()
+        )
+
+        max_seq = 0
+        for inv_num in existing_numbers:
+            parts = str(inv_num).rsplit("-", 1)
+            if len(parts) >= 2 and parts[-1].isdigit():
+                max_seq = max(max_seq, int(parts[-1]))
+
+        month_str = date.today().strftime('%y%m')
+        return f"{prefix}-{month_str}-{max_seq + 1:04d}"
 
     def __repr__(self) -> str:
         return f"<Invoice {self.invoice_number} Total={self.total_paise}>"

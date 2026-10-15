@@ -15,8 +15,36 @@ CLEAN_NAME_REGEX = re.compile(r"^[A-Za-z][A-Za-z\s\.\'\-]{1,59}$")
 # Detect obvious keyboard mashing (e.g., 5+ consecutive consonants or repeated chars)
 REPEATED_CHAR_REGEX = re.compile(r"(.)\1{3,}", re.IGNORECASE)
 
-# In-memory sliding window store for IP rate limiting: {ip_key: [timestamps]}
+# Bounded in-memory sliding window store for IP rate limiting: {ip_key: [timestamps]}
 _RATE_LIMIT_STORE = defaultdict(list)
+MAX_RATE_LIMIT_KEYS = 10000
+
+
+def _resolve_client_ip() -> str:
+    """
+    Resolves client IP safely. Uses the right-most X-Forwarded-For hop (appended by the
+    trusted reverse proxy) or ProxyFix-resolved request.remote_addr, preventing
+    spoofing via attacker-prepended X-Forwarded-For headers.
+    """
+    xff = request.headers.get("X-Forwarded-For", "").strip()
+    if xff:
+        # Take the right-most IP added by the trusted proxy, never the client-controlled index [0]
+        return xff.split(",")[-1].strip() or (request.remote_addr or "127.0.0.1")
+    return (request.remote_addr or "127.0.0.1").strip()
+
+
+def _prune_rate_limit_store(now: float, window_seconds: int) -> None:
+    """Bounds memory usage of _RATE_LIMIT_STORE to prevent OOM DoS attacks."""
+    if len(_RATE_LIMIT_STORE) <= MAX_RATE_LIMIT_KEYS:
+        return
+    stale_keys = [
+        k for k, timestamps in list(_RATE_LIMIT_STORE.items())
+        if not timestamps or (now - timestamps[-1]) >= window_seconds
+    ]
+    for k in stale_keys:
+        _RATE_LIMIT_STORE.pop(k, None)
+    if len(_RATE_LIMIT_STORE) > MAX_RATE_LIMIT_KEYS:
+        _RATE_LIMIT_STORE.clear()
 
 
 def sanitize_and_validate_phone(raw_phone: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
@@ -79,16 +107,19 @@ def rate_limit(max_requests: int = 5, window_seconds: int = 60, key_prefix: str 
             if current_app.config.get("TESTING") and not current_app.config.get("ENFORCE_RATE_LIMIT_IN_TESTS"):
                 return f(*args, **kwargs)
 
-            ip = request.headers.get("X-Forwarded-For", request.remote_addr or "127.0.0.1").split(",")[0].strip()
-            bucket_key = f"{key_prefix}:{ip}"
             now = time.time()
+            _prune_rate_limit_store(now, window_seconds)
 
-            # Prune expired timestamps outside window
-            _RATE_LIMIT_STORE[bucket_key] = [
-                ts for ts in _RATE_LIMIT_STORE[bucket_key] if now - ts < window_seconds
+            ip = _resolve_client_ip()
+            bucket_key = f"{key_prefix}:{ip}"
+
+            # Prune expired timestamps outside window for current key
+            valid_timestamps = [
+                ts for ts in _RATE_LIMIT_STORE.get(bucket_key, []) if now - ts < window_seconds
             ]
 
-            if len(_RATE_LIMIT_STORE[bucket_key]) >= max_requests:
+            if len(valid_timestamps) >= max_requests:
+                _RATE_LIMIT_STORE[bucket_key] = valid_timestamps
                 msg = "Too many booking requests from your network. Please wait 1 minute and try again."
                 if request.headers.get("HX-Request"):
                     return (
@@ -98,7 +129,34 @@ def rate_limit(max_requests: int = 5, window_seconds: int = 60, key_prefix: str 
                     )
                 return jsonify({"error": msg}), 429
 
-            _RATE_LIMIT_STORE[bucket_key].append(now)
+            valid_timestamps.append(now)
+            _RATE_LIMIT_STORE[bucket_key] = valid_timestamps
             return f(*args, **kwargs)
+
         return wrapped
     return decorator
+
+
+CSV_DANGEROUS_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def sanitize_csv_cell(val: object) -> object:
+    """
+    Neutralizes CSV Formula Injection (CSV Injection / DDE) for Excel & LibreOffice Calc.
+    Leaves numbers (int/float) intact, converts None to empty string, and prefixes strings
+    starting with =, +, -, @, tab, or carriage return with a single quote (').
+    """
+    if val is None:
+        return ""
+    if isinstance(val, (int, float)) and not isinstance(val, bool):
+        return val
+    s = str(val)
+    stripped = s.lstrip()
+    if stripped and stripped[0] in CSV_DANGEROUS_PREFIXES or (s and s[0] in CSV_DANGEROUS_PREFIXES):
+        return f"'{s}"
+    return s
+
+
+def sanitize_csv_row(row: list | tuple) -> list:
+    """Applies sanitize_csv_cell to every element in a CSV row."""
+    return [sanitize_csv_cell(cell) for cell in row]

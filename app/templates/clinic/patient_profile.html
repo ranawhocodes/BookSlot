@@ -185,6 +185,7 @@
         </div>
 
         <form method="POST" action="/dashboard/clinic/patients/{{ patient.id }}/visits" class="space-y-3.5">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="slug" value="{{ tenant.slug }}">
             <div>
                 <label class="block text-xs font-semibold text-slate-400 mb-1" for="visit-doctor-select">Attending

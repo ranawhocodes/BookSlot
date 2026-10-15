@@ -21,8 +21,16 @@ def login():
             session["tenant_id"] = str(user.tenant_id)
             session["user_role"] = user.role.value
             session["user_name"] = user.name
-            flash(f"Welcome back, {user.name}!", "success")
-            return redirect(url_for("dashboard.turf_dashboard"))
+            # Check for next parameter (from query string or form)
+            next_url = request.args.get("next") or request.form.get("next")
+            if next_url and next_url.startswith("/") and not next_url.startswith("//"):
+                return redirect(next_url)
+
+            # Redirect based on tenant vertical
+            tenant = db.session.get(Tenant, user.tenant_id)
+            if tenant and tenant.vertical.value == "CLINIC":
+                return redirect(url_for("clinic.queue_board", slug=tenant.slug))
+            return redirect(url_for("dashboard.dashboard_home", slug=tenant.slug if tenant else None))
 
         flash("Invalid phone or password.", "error")
 
@@ -38,8 +46,12 @@ def switch_tenant(slug: str):
     if tenant:
         session["tenant_id"] = str(tenant.id)
         session["user_role"] = "OWNER"
+        session["user_name"] = f"{tenant.name} Owner"
         flash(f"Switched to {tenant.name}", "info")
-    return redirect(url_for("dashboard.turf_dashboard", slug=slug))
+        if tenant.vertical.value == "CLINIC":
+            return redirect(url_for("clinic.queue_board", slug=tenant.slug))
+        return redirect(url_for("dashboard.dashboard_home", slug=slug))
+    return redirect(url_for("auth.login"))
 
 
 @auth_bp.route("/logout")

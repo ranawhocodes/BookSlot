@@ -223,11 +223,58 @@ def hold_slot_and_checkout(slug: str):
     except ValueError:
         return "Invalid slot parameters.", 400
 
+    if end_t <= start_t:
+        return "Slot end_time must be after start_time.", 400
+
     resource = db.session.execute(
         select(Resource).filter_by(id=resource_id, tenant_id=tenant.id)
     ).scalar_one_or_none()
     if not resource:
         return "Resource not found.", 404
+
+    step_mins = resource.slot_duration_mins or 60
+    selected_slots_raw = (request.form.get("selected_slots") or "").strip()
+
+    slot_intervals: list[tuple[time, time]] = []
+    if selected_slots_raw:
+        tokens = [t.strip() for t in selected_slots_raw.split(",") if t.strip()]
+        if not tokens:
+            return "Invalid selected_slots parameter.", 400
+        for token in tokens:
+            parts = token.split("-")
+            if len(parts) != 2:
+                return "Invalid slot interval format.", 400
+            try:
+                s_t = time.fromisoformat(parts[0].strip())
+                e_t = time.fromisoformat(parts[1].strip())
+            except ValueError:
+                return "Invalid slot interval times.", 400
+            if e_t <= s_t:
+                return "Slot end_time must be after start_time.", 400
+            dt_s = datetime.combine(date(2000, 1, 1), s_t)
+            dt_e = datetime.combine(date(2000, 1, 1), e_t)
+            if (dt_e - dt_s) != timedelta(minutes=step_mins):
+                return f"Slot interval must match duration of {step_mins} minutes.", 400
+            slot_intervals.append((s_t, e_t))
+    else:
+        dt_curr = datetime.combine(date(2000, 1, 1), start_t)
+        dt_end = datetime.combine(date(2000, 1, 1), end_t)
+        while dt_curr < dt_end:
+            dt_next = dt_curr + timedelta(minutes=step_mins)
+            if dt_next > dt_end:
+                return "Time range does not align with slot duration.", 400
+            slot_intervals.append((dt_curr.time(), dt_next.time()))
+            dt_curr = dt_next
+
+    if not slot_intervals:
+        return "At least one slot interval is required.", 400
+
+    for i in range(len(slot_intervals) - 1):
+        if slot_intervals[i][1] != slot_intervals[i + 1][0]:
+            return "Selected slots must be contiguous back-to-back intervals.", 400
+
+    if start_t != slot_intervals[0][0] or end_t != slot_intervals[-1][1]:
+        return "Requested start/end times do not match selected slot intervals.", 400
 
     # 4. Upsert Customer with DPDP Consent timestamp
     customer = db.session.execute(
@@ -253,12 +300,16 @@ def hold_slot_and_checkout(slug: str):
         db.session.flush()
 
     # 5. Calculate Quote & Create 7-Minute Atomic Hold
-    quote = calculate_booking_quote(
-        resource=resource,
-        slot_date=slot_date,
-        slot_intervals=[(start_t, end_t)],
-        tenant=tenant,
-    )
+    try:
+        quote = calculate_booking_quote(
+            resource=resource,
+            slot_date=slot_date,
+            slot_intervals=slot_intervals,
+            tenant=tenant,
+        )
+    except ValueError as exc:
+        return str(exc), 400
+
     payment_choice = request.form.get("payment_choice", "advance")
     payable_paise = (
         quote.advance_amount_paise if payment_choice == "advance" else quote.total_amount_paise

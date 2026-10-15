@@ -363,3 +363,67 @@ def test_unique_confirmed_slot_database_constraint(turf_setup, db_session):
         db_session.commit()
     db_session.rollback()
 
+
+def test_overlapping_multi_hour_slot_hold_is_blocked(turf_setup):
+    """A 2-hour hold/booking (18:00-20:00) blocks an overlapping 1-hour hold (19:00-20:00)."""
+    tenant = turf_setup["tenant"]
+    football = turf_setup["football"]
+    customer = turf_setup["customer"]
+    wednesday = date(2026, 10, 14)
+    t0 = datetime(2026, 10, 14, 12, 0, 0, tzinfo=timezone.utc)
+
+    # 1. Customer 1 holds 2 contiguous hours: 18:00 - 20:00
+    hold_2h = create_slot_hold(
+        tenant_id=tenant.id,
+        resource_id=football.id,
+        slot_date=wednesday,
+        start_time=time(18, 0),
+        end_time=time(20, 0),
+        customer_id=customer.id,
+        hold_duration_minutes=7,
+        now=t0,
+    )
+    assert hold_2h.status == BookingStatus.PENDING_PAYMENT
+
+    # Both 18:00 and 19:00 slots must show as LOCKED in get_available_slots
+    slots = get_available_slots(tenant.id, football.id, wednesday, now=t0 + timedelta(minutes=1))
+    slot_18 = next(s for s in slots if s.start_time == time(18, 0))
+    slot_19 = next(s for s in slots if s.start_time == time(19, 0))
+    assert slot_18.status == "LOCKED"
+    assert slot_19.status == "LOCKED"
+
+    # 2. Customer 2 attempts to hold 19:00 - 20:00 (different start_time, but overlaps!) -> MUST FAIL
+    with pytest.raises(SlotUnavailableError):
+        create_slot_hold(
+            tenant_id=tenant.id,
+            resource_id=football.id,
+            slot_date=wednesday,
+            start_time=time(19, 0),
+            end_time=time(20, 0),
+            now=t0 + timedelta(minutes=2),
+        )
+
+
+def test_non_contiguous_multi_slot_hold_rejected(client, turf_setup):
+    """POST /b/<slug>/hold rejects non-contiguous multi-slot selections with 400 Bad Request."""
+    tenant = turf_setup["tenant"]
+    football = turf_setup["football"]
+
+    resp = client.post(
+        f"/b/{tenant.slug}/hold",
+        headers={"HX-Request": "true"},
+        data={
+            "resource_id": str(football.id),
+            "date": "2026-10-14",
+            "start_time": "06:00",
+            "end_time": "22:00",
+            "selected_slots": "06:00-07:00,21:00-22:00",
+            "name": "Gap Tester",
+            "phone": "9876543210",
+            "dpdp_consent": "on",
+            "payment_choice": "advance",
+        },
+    )
+    assert resp.status_code == 400
+
+
