@@ -12,6 +12,7 @@ from flask import (
     abort,
     jsonify,
     make_response,
+    current_app,
 )
 import qrcode
 from sqlalchemy import select
@@ -385,70 +386,124 @@ def verify_live_razorpay_payment(slug: str):
 
 @public_bp.route("/b/<slug>/pay-mock", methods=["POST"])
 def pay_mock(slug: str):
-    """Completes UPI Intent / Sandbox payment confirmation and triggers WhatsApp alert."""
+    """
+    Sandbox/Dev mock payment confirmation endpoint.
+    Strictly disabled in production (when DEBUG=False and TESTING=False).
+    Never trusts client-supplied amount_paise.
+    """
+    if not current_app.config.get("DEBUG") and not current_app.config.get("TESTING"):
+        abort(403, description="Mock payment endpoint is disabled in production.")
+
     tenant = _get_tenant_or_404(slug)
-    booking_id = uuid.UUID(request.form.get("booking_id", ""))
-    amount_paise = int(request.form.get("amount_paise", "0"))
-    utr_ref = request.form.get("utr_number", "").strip()
+    raw_booking_id = request.form.get("booking_id", "").strip()
+    utr_number = request.form.get("utr_number", "").strip()[:24]
 
-    booking = confirm_booking(
-        tenant_id=tenant.id,
-        booking_id=booking_id,
-        paid_amount_paise=amount_paise,
-    )
+    try:
+        booking_uuid = uuid.UUID(raw_booking_id)
+    except (ValueError, TypeError):
+        return "Invalid booking ID.", 400
 
-    payment_rec = db.session.execute(
-        select(Payment).filter_by(booking_id=booking.id, tenant_id=tenant.id)
+    now_utc = datetime.now(timezone.utc)
+
+    booking = db.session.execute(
+        db.select(Booking)
+        .filter_by(id=booking_uuid, tenant_id=tenant.id)
+        .with_for_update()
+    ).scalar_one_or_none()
+
+    if not booking:
+        return "Booking not found.", 404
+
+    if booking.status != BookingStatus.PENDING_PAYMENT:
+        return "Booking is no longer pending payment.", 400
+
+    if booking.locked_until and booking.locked_until <= now_utc:
+        booking.status = BookingStatus.EXPIRED
+        booking.locked_until = None
+        db.session.commit()
+        return "Your 7-minute booking hold has expired. Please select the slot again.", 409
+
+    # Look up the pending Payment record created during /hold to get the authoritative payable amount
+    payment = db.session.execute(
+        db.select(Payment)
+        .filter_by(booking_id=booking.id, tenant_id=tenant.id)
+        .order_by(Payment.created_at.desc())
+        .with_for_update()
     ).scalars().first()
 
-    pay_id = f"pay_upi_{utr_ref}" if utr_ref else f"pay_mock_{uuid.uuid4().hex[:10]}"
-    if payment_rec:
-        payment_rec.status = "CAPTURED"
-        payment_rec.razorpay_payment_id = pay_id
-        payment_rec.webhook_payload = {"gateway": "upi_intent", "status": "captured", "utr": utr_ref}
+    if payment and payment.amount_paise > 0:
+        authoritative_amount_paise = payment.amount_paise
     else:
-        payment_rec = Payment(
+        # Authoritative server-side calculation from booking total and tenant advance percentage
+        adv_pct = tenant.advance_percentage if (tenant.advance_percentage and 0 < tenant.advance_percentage <= 100) else 100
+        authoritative_amount_paise = round(booking.total_amount_paise * (adv_pct / 100))
+
+    # Confirm the booking using the authoritative server-computed amount
+    confirmed_booking = confirm_booking(
+        tenant_id=tenant.id,
+        booking_id=booking.id,
+        paid_amount_paise=authoritative_amount_paise,
+    )
+
+    if payment:
+        payment.status = "CAPTURED"
+        payment.amount_paise = authoritative_amount_paise
+        if not payment.razorpay_payment_id:
+            payment.razorpay_payment_id = f"pay_mock_{uuid.uuid4().hex[:10]}"
+        payment.webhook_payload = {
+            "gateway": "mock_upi",
+            "status": "captured",
+            "utr": utr_number,
+        }
+    else:
+        payment = Payment(
             id=uuid.uuid4(),
             tenant_id=tenant.id,
             booking_id=booking.id,
             razorpay_order_id=f"order_mock_{booking.id.hex[:10]}",
-            razorpay_payment_id=pay_id,
-            amount_paise=amount_paise,
+            razorpay_payment_id=f"pay_mock_{uuid.uuid4().hex[:10]}",
+            amount_paise=authoritative_amount_paise,
             mode=PaymentMode.UPI_ONLINE,
             status="CAPTURED",
-            webhook_payload={"gateway": "upi_intent", "status": "captured"},
+            webhook_payload={
+                "gateway": "mock_upi",
+                "status": "captured",
+                "utr": utr_number,
+            },
         )
-        db.session.add(payment_rec)
+        db.session.add(payment)
+
     db.session.commit()
 
-    if booking.customer:
-        NotifierService().send_notification(
-            tenant=tenant,
-            recipient_phone=booking.customer.phone,
-            template_name="booking_confirmed",
-            parameters={
-                "customer_name": booking.customer.name,
-                "resource_name": booking.resource.name,
-                "slot_date": booking.slot_date.strftime("%d %b %Y"),
-                "start_time": booking.start_time.strftime("%I:%M %p"),
-                "venue_name": tenant.name,
-                "balance_inr": max(0, (booking.total_amount_paise - booking.paid_amount_paise) // 100),
-            },
-            booking_id=booking.id,
-            customer_id=booking.customer.id,
-        )
+    # Dispatch booking confirmation notification if customer exists
+    if confirmed_booking.customer:
+        try:
+            balance_inr = max(0, (confirmed_booking.total_amount_paise - confirmed_booking.paid_amount_paise) // 100)
+            NotifierService().send_notification(
+                tenant=tenant,
+                recipient_phone=confirmed_booking.customer.phone,
+                template_name="booking_confirmed",
+                parameters={
+                    "customer_name": confirmed_booking.customer.name,
+                    "resource_name": confirmed_booking.resource.name,
+                    "slot_date": confirmed_booking.slot_date.strftime("%d %b %Y"),
+                    "start_time": confirmed_booking.start_time.strftime("%I:%M %p"),
+                    "venue_name": tenant.name,
+                    "balance_inr": balance_inr,
+                },
+                booking_id=confirmed_booking.id,
+                customer_id=confirmed_booking.customer.id,
+            )
+        except Exception:
+            pass
 
-    conf_url = url_for("public.confirmation_page", slug=tenant.slug, booking_id=booking.id)
+    confirmation_url = url_for("public.confirmation_page", slug=tenant.slug, booking_id=confirmed_booking.id)
     if request.headers.get("HX-Request"):
-        resp = make_response(f'<script>window.location.href = "{conf_url}";</script>', 200)
-        resp.headers["HX-Redirect"] = conf_url
+        resp = current_app.make_response(("", 200))
+        resp.headers["HX-Redirect"] = confirmation_url
         return resp
-    return jsonify({
-        "status": "success",
-        "booking_id": str(booking.id),
-        "payment_id": str(payment_rec.id),
-        "redirect_url": conf_url,
-    }), 200
+
+    return redirect(confirmation_url)
 
 
 @public_bp.route("/b/<slug>/confirmation/<uuid:booking_id>", methods=["GET"])

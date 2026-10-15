@@ -126,14 +126,14 @@
         {% endif %}
     </div>
 
-    <!-- Confirm Booking Final Action Form -->
-    <form hx-post="/b/{{ tenant.slug }}/pay-mock" hx-target="#drawer-content" class="space-y-2.5">
+    {% if config.DEBUG or config.TESTING %}
+    <!-- Sandbox / Development Mock Payment Form (Strictly disabled in production) -->
+    <form hx-post="/b/{{ tenant.slug }}/pay-mock" hx-target="#drawer-content" class="space-y-2.5 pt-2 border-t border-dashed border-stone-300">
         <input type="hidden" name="booking_id" value="{{ booking.id }}">
-        <input type="hidden" name="amount_paise" value="{{ payable_paise }}">
         <div>
             <input type="text" name="utr_number" title="Optional 12-digit UPI Reference or UTR Number"
                 aria-label="Optional 12-digit UPI Reference or UTR Number" maxlength="24"
-                placeholder="Optional: 12-digit UPI Ref / UTR Number"
+                placeholder="Sandbox Optional: 12-digit UPI Ref / UTR Number"
                 class="w-full px-4 py-2.5 rounded-2xl bg-white border border-stone-200 text-xs font-semibold text-[#181A1D] placeholder-stone-400 focus:outline-none focus:border-[#5E9E47]">
         </div>
         <button type="submit"
@@ -146,4 +146,5 @@
             </span>
         </button>
     </form>
+    {% endif %}
 </div>

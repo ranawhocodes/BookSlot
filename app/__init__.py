@@ -16,6 +16,8 @@ def create_app(config_name: str = "default") -> Flask:
         config_class = config_name
 
     app.config.from_object(config_class)
+    if hasattr(config_class, "init_app"):
+        config_class.init_app(app)
 
     # Ensure instance folder exists
     try:

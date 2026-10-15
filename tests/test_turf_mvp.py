@@ -107,7 +107,7 @@ def test_create_hold_and_mock_payment_flow(app, client, turf_setup):
             "amount_paise": "36000",
         }
     )
-    assert pay_resp.status_code == 200
+    assert pay_resp.status_code in (200, 302)
 
     # 3. Verify Booking is CONFIRMED and lock is cleared
     db.session.refresh(booking)
@@ -264,3 +264,77 @@ def test_venue_qr_poster_page(app, client, turf_setup):
     assert "Printable QR Poster" in html
     assert "data:image/png;base64," in html
     assert "Scan with any UPI / Camera App" in html
+
+
+def test_pay_mock_ignores_tampered_amount_and_blocks_production(app, client, turf_setup):
+    """POST /b/<slug>/pay-mock ignores client amount_paise tampering and returns 403 in production."""
+    tenant = turf_setup["tenant"]
+    football = turf_setup["football"]
+    wednesday = "2026-10-14"
+
+    # 1. Create Hold for 18:00-19:00 Peak Slot (Total: 120000 paise, 30% Advance: 36000 paise)
+    hold_resp = client.post(
+        f"/b/{tenant.slug}/hold",
+        headers={"HX-Request": "true"},
+        data={
+            "resource_id": str(football.id),
+            "date": wednesday,
+            "start_time": "18:00",
+            "end_time": "19:00",
+            "name": "Tamper Tester",
+            "phone": "9876500009",
+            "dpdp_consent": "on",
+            "payment_choice": "advance",
+        },
+    )
+    assert hold_resp.status_code == 200
+
+    booking = db.session.execute(
+        db.select(Booking).filter_by(
+            tenant_id=tenant.id,
+            slot_date=date(2026, 10, 14),
+            start_time=time(18, 0),
+        )
+    ).scalar_one()
+
+    # 2. Simulate production flags (DEBUG=False, TESTING=False) -> MUST return 403 Forbidden
+    app.config["DEBUG"] = False
+    app.config["TESTING"] = False
+    try:
+        prod_resp = client.post(
+            f"/b/{tenant.slug}/pay-mock",
+            data={"booking_id": str(booking.id), "amount_paise": "1"},
+        )
+        assert prod_resp.status_code == 403
+    finally:
+        app.config["DEBUG"] = True
+        app.config["TESTING"] = True
+
+    # 3. Attempt to tamper with amount_paise (sending 1 paisa instead of 36000 paise)
+    pay_resp = client.post(
+        f"/b/{tenant.slug}/pay-mock",
+        data={
+            "booking_id": str(booking.id),
+            "amount_paise": "1",
+        },
+    )
+    assert pay_resp.status_code in (200, 302)
+
+    db.session.refresh(booking)
+    assert booking.status == BookingStatus.CONFIRMED
+    # Must record authoritative 36000 paise, NOT the tampered 1 paisa
+    assert booking.paid_amount_paise == 36000
+
+    # 4. Attempt to pay already confirmed booking -> 400
+    repeat_resp = client.post(
+        f"/b/{tenant.slug}/pay-mock",
+        data={"booking_id": str(booking.id)},
+    )
+    assert repeat_resp.status_code == 400
+
+    # 5. Invalid UUID -> 400
+    invalid_resp = client.post(
+        f"/b/{tenant.slug}/pay-mock",
+        data={"booking_id": "not-a-uuid"},
+    )
+    assert invalid_resp.status_code == 400

@@ -18,8 +18,14 @@ from app.models import (
 def register_commands(app: Flask) -> None:
     @app.cli.command("seed-demo")
     @click.option("--reset", is_flag=True, help="Reset existing demo tenants before seeding.")
-    def seed_demo_command(reset: bool) -> None:
+    @click.option("--force-prod", is_flag=True, help="Explicitly allow demo seeding in production.")
+    def seed_demo_command(reset: bool, force_prod: bool) -> None:
         """Seed demo tenants: Pondy Arena Turf and Sri Aurobindo Dental & Ayurveda."""
+        if not current_app.debug and not current_app.testing and not force_prod:
+            raise click.ClickException(
+                "Refusing to seed demo accounts with default passwords in production. "
+                "Use --force-prod only if this is an isolated staging environment."
+            )
         click.echo("Seeding demo tenants for SlotEngine...")
         seed_demo_data(reset=reset)
         click.echo("Demo seeding completed successfully!")
